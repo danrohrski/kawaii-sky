@@ -31,22 +31,12 @@ export class PreloaderScene extends Phaser.Scene {
     // Load actual Power-Up Item images
     this.load.image('shield_item_img', 'assets/sprites/shield.png');
     this.load.image('magnet_item_img', 'assets/sprites/magnet.png');
+    this.load.image('speed_shoe_img', 'assets/sprites/speed-shoe.png');
 
     // No more collectible placeholders needed for now
-    const graphics = this.make.graphics({ x: 0, y: 0 });
-
-    // Power-up Item Placeholder (Only Speed left)
-    const powerUpSize = 40;
-    graphics.fillStyle(0x00ff00, 1); // Green for speed
-    graphics.fillRect(0, 0, powerUpSize, powerUpSize);
-    graphics.generateTexture(
-      'speed_powerup_placeholder',
-      powerUpSize,
-      powerUpSize,
-    );
-    graphics.clear(); // Clear after last placeholder generation
-
-    graphics.destroy();
+    // No more power-up placeholders (all have images now)
+    // let graphics = this.make.graphics({ x: 0, y: 0 });
+    // graphics.destroy(); // If graphics object was created but not used, destroy it.
   }
 
   create() {

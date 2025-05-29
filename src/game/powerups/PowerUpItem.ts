@@ -9,7 +9,7 @@ export interface PowerUpItemConfig {
 
 const SHIELD_ITEM_SCALE = 0.125; // Reverted for 400x445 shield.png (target ~50-55px)
 const MAGNET_ITEM_SCALE = 0.1; // Adjusted for large 400x408 magnet.png
-const SPEED_ITEM_SCALE = 1.0; // Placeholder is already at its native size
+const SPEED_ITEM_SCALE = 0.2; // Adjusted to 0.2
 
 export class PowerUpItem extends Phaser.Physics.Arcade.Sprite {
   public powerUpType: PowerUpType;
@@ -37,8 +37,8 @@ export class PowerUpItem extends Phaser.Physics.Arcade.Sprite {
         return SHIELD_ITEM_SCALE;
       case PowerUpType.MAGNET:
         return MAGNET_ITEM_SCALE;
-      case PowerUpType.SPEED: // For speed_powerup_placeholder
-        return SPEED_ITEM_SCALE;
+      case PowerUpType.SPEED:
+        return SPEED_ITEM_SCALE; // Use new scale for Speed
       default:
         return 1.0;
     }
@@ -124,9 +124,9 @@ export class ShieldPowerUpItem extends PowerUpItem {
 export class SpeedPowerUpItem extends PowerUpItem {
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, {
-      textureKey: 'speed_powerup_placeholder',
+      textureKey: 'speed_shoe_img', // Use the new speed shoe image
       type: PowerUpType.SPEED,
-      duration: 7000, // 7 seconds for speed
+      duration: 7000,
     });
   }
 }
