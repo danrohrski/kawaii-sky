@@ -1,24 +1,27 @@
 import Phaser from 'phaser';
-import useGameStore, { PowerUpType } from '@/store/gameStore'; // Import PowerUpType
-// import { CloudMonsterPool, CloudMonster } from '@/game/obstacles/CloudMonsterPool'; // CloudMonster import removed
+import useGameStore from '@/store/gameStore';
 import { CloudMonsterPool } from '@/game/obstacles/CloudMonsterPool';
-import { Obstacle } from '@/game/obstacles/Obstacle'; // Import Obstacle
-import { CollectiblePool } from '@/game/collectibles/CollectiblePool'; // Import CollectiblePool
-import { Collectible, CollectibleType } from '@/game/collectibles/Collectible'; // Import Collectible & Type
-import { PowerUpPool } from '@/game/powerups/PowerUpPool'; // Import PowerUpPool
-import { PowerUpItem } from '@/game/powerups/PowerUpItem'; // Import PowerUpItem
+import { Obstacle } from '@/game/obstacles/Obstacle';
+import { CollectiblePool } from '@/game/collectibles/CollectiblePool';
+import { Collectible } from '@/game/collectibles/Collectible';
+import { PowerUpPool } from '@/game/powerups/PowerUpPool';
+import { PowerUpItem } from '@/game/powerups/PowerUpItem';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import {
+  LevelConfig,
+  ObstacleTypeKey,
+  CollectibleType,
+  PowerUpType,
+} from '@/game/levels/levelTypes'; // Centralized enums
 
 const CINNAMO_FLAP_VELOCITY_NORMAL = -300;
 let CINNAMO_FLAP_VELOCITY_CURRENT = CINNAMO_FLAP_VELOCITY_NORMAL;
 const CINNAMO_FLAP_VELOCITY_BOOSTED = -400; // For Speed PowerUp
 const CINNAMO_GRAVITY = 800;
 const CINNAMO_SCALE = 0.5; // Scale down Cinnamoroll if needed
-const OBSTACLE_SCROLL_SPEED = -150; // Speed at which obstacles move left
-const OBSTACLE_SPAWN_INTERVAL = 2000; // Spawn an obstacle every 2 seconds (adjust as needed)
-const COLLECTIBLE_SPAWN_INTERVAL = 1500; // Spawn collectible slightly more often
-const COLLECTIBLE_SCROLL_SPEED = -120; // Collectibles might scroll at a different speed
-const POWERUP_SPAWN_INTERVAL = 10000; // Spawn power-up every 10 seconds (example)
-const POWERUP_SCROLL_SPEED = -100;
+const OBSTACLE_SCROLL_SPEED_BASE = -150;
+const COLLECTIBLE_SCROLL_SPEED_BASE = -120;
+const POWERUP_SCROLL_SPEED_BASE = -100;
 const INVINCIBILITY_DURATION = 1500; // 1.5 seconds of invincibility
 const MAGNET_RADIUS = 150; // Radius for magnet effect
 
@@ -43,15 +46,53 @@ export class PlayScene extends Phaser.Scene {
   // private longPressTimer?: Phaser.Time.TimerEvent; // Removed
   // private isCharging = false; // Removed
   // private chargeMeterGraphics!: Phaser.GameObjects.Graphics; // Removed
+  private currentLevelConfig!: LevelConfig;
+  private currentLevelIndex!: number;
 
   constructor() {
     super('PlayScene');
   }
 
+  init(data: { levelIndex?: number; levelConfig?: LevelConfig }) {
+    if (data && data.levelConfig && typeof data.levelIndex === 'number') {
+      this.currentLevelIndex = data.levelIndex;
+      this.currentLevelConfig = data.levelConfig;
+    } else {
+      console.warn(
+        'PlayScene init: No or incomplete level data, loading default (level1_config).',
+      );
+      this.currentLevelIndex = 0; // Default to level 0 index
+      this.currentLevelConfig = this.cache.json.get(
+        'level1_config',
+      ) as LevelConfig;
+    }
+
+    if (!this.currentLevelConfig) {
+      console.error(
+        'CRITICAL: Failed to load any levelConfig in PlayScene init! Returning to MainMenu.',
+      );
+      this.scene.start('MainMenuScene'); // Avoid crash, go back to main menu to restart flow
+      return;
+    }
+    useGameStore
+      .getState()
+      .setCurrentLevel(this.currentLevelIndex, this.currentLevelConfig);
+  }
+
   create() {
-    console.log('PlayScene: create');
-    // Placeholder sky
-    this.cameras.main.setBackgroundColor('#AEC6CF'); // pastel-blue
+    if (!this.currentLevelConfig) {
+      // This should ideally not be hit if init is robust
+      console.error(
+        "PlayScene create: currentLevelConfig is missing. This shouldn't happen.",
+      );
+      this.scene.start('MainMenuScene');
+      return;
+    }
+    console.log(
+      'PlayScene: create for level:',
+      this.currentLevelConfig.levelName,
+    );
+    this.cameras.main.setBackgroundColor(this.currentLevelConfig.skyColor);
 
     // Cinnamoroll sprite using the loaded sheet
     this.cinnamoroll = this.physics.add.sprite(
@@ -106,7 +147,7 @@ export class PlayScene extends Phaser.Scene {
 
     // Setup timer to spawn obstacles
     this.obstacleSpawnTimer = this.time.addEvent({
-      delay: OBSTACLE_SPAWN_INTERVAL,
+      delay: this.currentLevelConfig.obstacleSpawnIntervalBase, // Use from config
       callback: this.spawnObstacle,
       callbackScope: this,
       loop: true,
@@ -115,7 +156,7 @@ export class PlayScene extends Phaser.Scene {
     // Collectibles
     this.collectiblePool = new CollectiblePool(this);
     this.collectibleSpawnTimer = this.time.addEvent({
-      delay: COLLECTIBLE_SPAWN_INTERVAL,
+      delay: this.currentLevelConfig.collectibleSpawnIntervalBase, // Use from config
       callback: this.spawnCollectible,
       callbackScope: this,
       loop: true,
@@ -124,7 +165,7 @@ export class PlayScene extends Phaser.Scene {
     // Power-ups
     this.powerUpPool = new PowerUpPool(this);
     this.powerUpSpawnTimer = this.time.addEvent({
-      delay: POWERUP_SPAWN_INTERVAL,
+      delay: this.currentLevelConfig.powerUpSpawnIntervalBase, // Use from config
       callback: this.spawnPowerUp,
       callbackScope: this,
       loop: true,
@@ -179,12 +220,18 @@ export class PlayScene extends Phaser.Scene {
       this.scoreText.setText(`Score: ${state.score}`);
     });
 
-    // Reset score on scene start for now (or if coming from game over)
+    // Ensure game state is reset based on the current level context if it's a fresh start for this level
+    const storeState = useGameStore.getState();
     if (
-      useGameStore.getState().lives === 3 &&
-      useGameStore.getState().score === 0
+      storeState.currentLevelIndex !== this.currentLevelIndex ||
+      storeState.currentLevelConfig?.levelName !==
+        this.currentLevelConfig.levelName ||
+      (storeState.lives === 3 && storeState.score === 0)
     ) {
-      useGameStore.getState().resetGame(); // Ensures clean state on very first game or after full game over
+      useGameStore.getState().resetGame(this.currentLevelIndex);
+      useGameStore
+        .getState()
+        .setCurrentLevel(this.currentLevelIndex, this.currentLevelConfig);
     }
 
     // Add a quit button to go back to the main menu
@@ -219,59 +266,53 @@ export class PlayScene extends Phaser.Scene {
   }
 
   spawnObstacle() {
-    const gameWidth = this.cameras.main.width;
-    const gameHeight = this.cameras.main.height;
-    const spawnX = gameWidth + 50;
-    const spawnY = Phaser.Math.Between(gameHeight * 0.2, gameHeight * 0.8);
-    this.cloudMonsterPool.getMonster(spawnX, spawnY, OBSTACLE_SCROLL_SPEED);
+    const { scrollSpeedMultiplier, obstacleTypes } = this.currentLevelConfig;
+    if (obstacleTypes.length === 0) return;
+    // For now, only cloud_monster is implemented. Later, pick randomly from obstacleTypes.
+    const typeToSpawn = obstacleTypes[0]; // Placeholder
+
+    if (typeToSpawn === ObstacleTypeKey.CLOUD_MONSTER) {
+      const gameWidth = this.cameras.main.width;
+      const gameHeight = this.cameras.main.height;
+      const spawnX = gameWidth + 50;
+      const spawnY = Phaser.Math.Between(gameHeight * 0.2, gameHeight * 0.8);
+      const speed = OBSTACLE_SCROLL_SPEED_BASE * scrollSpeedMultiplier; // Assuming a base speed constant
+      this.cloudMonsterPool.getMonster(spawnX, spawnY, speed);
+    }
   }
 
   spawnCollectible() {
-    const gameWidth = this.cameras.main.width;
-    const gameHeight = this.cameras.main.height;
-    const spawnX = gameWidth + 50;
-    const spawnY = Phaser.Math.Between(gameHeight * 0.2, gameHeight * 0.8);
-
-    // Weighted randomness for collectible types
-    const rand = Math.random();
-    let typeToSpawn: CollectibleType;
-    if (rand < 0.6) {
-      // 60% chance for Cinnamon Roll
-      typeToSpawn = CollectibleType.CINNAMON_ROLL;
-    } else if (rand < 0.9) {
-      // 30% chance for Coffee Cup (60 + 30 = 90)
-      typeToSpawn = CollectibleType.COFFEE_CUP;
-    } else {
-      // 10% chance for Star
-      typeToSpawn = CollectibleType.STAR;
-    }
+    const { scrollSpeedMultiplier, collectibleTypes } = this.currentLevelConfig;
+    if (collectibleTypes.length === 0) return;
+    const typeToSpawn =
+      collectibleTypes[Math.floor(Math.random() * collectibleTypes.length)]; // No cast needed
+    const speed = COLLECTIBLE_SCROLL_SPEED_BASE * scrollSpeedMultiplier;
     this.collectiblePool.spawnCollectible(
-      spawnX,
-      spawnY,
-      COLLECTIBLE_SCROLL_SPEED,
+      this.cameras.main.width + 50,
+      Phaser.Math.Between(
+        this.cameras.main.height * 0.2,
+        this.cameras.main.height * 0.8,
+      ),
+      speed,
       typeToSpawn,
     );
   }
 
   spawnPowerUp() {
-    const gameWidth = this.cameras.main.width;
-    const gameHeight = this.cameras.main.height;
-    const spawnX = gameWidth + 50;
-    const spawnY = Phaser.Math.Between(gameHeight * 0.3, gameHeight * 0.7);
-    const powerUpTypes = [
-      PowerUpType.SHIELD,
-      PowerUpType.SPEED,
-      PowerUpType.MAGNET,
-    ];
-    const randomType =
-      powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+    const { scrollSpeedMultiplier, powerUpTypes } = this.currentLevelConfig;
+    if (powerUpTypes.length === 0) return;
+    const typeToSpawn =
+      powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)]; // No cast needed
+    const speed = POWERUP_SCROLL_SPEED_BASE * scrollSpeedMultiplier;
     this.powerUpPool.spawnPowerUp(
-      spawnX,
-      spawnY,
-      POWERUP_SCROLL_SPEED,
-      randomType,
+      this.cameras.main.width + 50,
+      Phaser.Math.Between(
+        this.cameras.main.height * 0.3,
+        this.cameras.main.height * 0.7,
+      ),
+      speed,
+      typeToSpawn,
     );
-    console.log(`Spawned PowerUp: ${randomType}`);
   }
 
   handlePlayerObstacleCollision(
@@ -283,7 +324,7 @@ export class PlayScene extends Phaser.Scene {
 
     if (useGameStore.getState().isShieldActive) {
       useGameStore.getState().deactivatePowerUp(PowerUpType.SHIELD);
-      (obstacle as Obstacle).despawn(); // Obstacle is destroyed by shield
+      if (obstacle instanceof Obstacle) (obstacle as Obstacle).despawn();
       console.log('Shield blocked an obstacle!');
       return;
     }
@@ -347,9 +388,15 @@ export class PlayScene extends Phaser.Scene {
       console.log('Game Over');
       if (this.blinkTween) this.blinkTween.stop(); // Stop blink on game over
       this.cinnamoroll.setAlpha(1); // Ensure visible on game over if was blinking
-      useGameStore.getState().resetGame();
-      CINNAMO_FLAP_VELOCITY_CURRENT = CINNAMO_FLAP_VELOCITY_NORMAL; // Explicitly reset velocity variable
-      this.scene.start('MainMenuScene');
+      useGameStore.getState().resetGame(0); // Reset to level 0 state
+      // Important: Pass a valid config for the starting level to MainMenuScene
+      const firstLevelConfig = this.cache.json.get(
+        'level1_config',
+      ) as LevelConfig;
+      this.scene.start('MainMenuScene', {
+        levelIndex: 0,
+        levelConfig: firstLevelConfig,
+      });
     } else {
       console.log(`Player hit! Lives remaining: ${currentLives}`);
       this.isInvincible = true;
@@ -441,23 +488,38 @@ export class PlayScene extends Phaser.Scene {
     }
   }
 
-  update(_time: number, _delta: number) {
+  update(time: number, delta: number) {
     if (!this.cinnamoroll.active) return;
+    useGameStore.getState().incrementGameTime(delta);
+    this.updateActivePowerUps(delta);
 
-    this.updateActivePowerUps(_delta);
+    // Only destructure gameTime as others are not used here from store directly for this check
+    const { gameTime } = useGameStore.getState();
+    const currentConfig = this.currentLevelConfig; // Use the scene's authoritative config
 
     if (
+      currentConfig?.levelDuration &&
+      gameTime / 1000 >= currentConfig.levelDuration
+    ) {
+      console.log(`Level ${currentConfig.levelName} complete!`);
+      useGameStore.getState().resetGame(0);
+      const nextLevelConfig = this.cache.json.get(
+        'level1_config',
+      ) as LevelConfig;
+      this.scene.start('MainMenuScene', {
+        levelIndex: 0,
+        levelConfig: nextLevelConfig,
+      });
+      return;
+    }
+    // Off-screen check
+    if (
+      this.cinnamoroll.y < -this.cinnamoroll.displayHeight / 2 ||
       this.cinnamoroll.y >
-        this.cameras.main.height + this.cinnamoroll.displayHeight / 2 ||
-      this.cinnamoroll.y < -(this.cinnamoroll.displayHeight / 2)
+        this.cameras.main.height + this.cinnamoroll.displayHeight / 2
     ) {
       if (!this.isInvincible) {
-        this.playerHit(); // playerHit now handles repositioning if not game over
-        // If still alive after hit, playerHit will tween X. We might still want to reset Y velocity here.
-        if (useGameStore.getState().lives > 0 && this.cinnamoroll.active) {
-          // this.cinnamoroll.setPosition(this.cameras.main.width / 4, this.cameras.main.height / 2); // playerHit handles X, Y can be centered or as is
-          this.cinnamoroll.setVelocityY(0); // Stop current fall/rise to prevent immediate re-trigger
-        }
+        this.playerHit();
       }
     }
   }

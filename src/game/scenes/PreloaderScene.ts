@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { LevelConfig } from '@/game/levels/levelTypes'; // Import LevelConfig
 
 export class PreloaderScene extends Phaser.Scene {
   constructor() {
@@ -33,15 +34,47 @@ export class PreloaderScene extends Phaser.Scene {
     this.load.image('magnet_item_img', 'assets/sprites/magnet.png');
     this.load.image('speed_shoe_img', 'assets/sprites/speed-shoe.png');
 
-    // No more collectible placeholders needed for now
-    // No more power-up placeholders (all have images now)
-    // let graphics = this.make.graphics({ x: 0, y: 0 });
-    // graphics.destroy(); // If graphics object was created but not used, destroy it.
+    // Load level configuration JSON
+    // For now, always load level 1. Later, this could be dynamic based on gameStore.currentLevelIndex
+    this.load.json('level1_config', 'assets/levels/level1.json');
+
+    // Assuming speed_powerup_placeholder is still generated if speed_shoe_img is not final
+    const powerUpSize = 40;
+    let graphics = this.make.graphics({ x: 0, y: 0 });
+    graphics.fillStyle(0x00ff00, 1); // Green for speed
+    graphics.fillRect(0, 0, powerUpSize, powerUpSize);
+    graphics.generateTexture(
+      'speed_powerup_placeholder',
+      powerUpSize,
+      powerUpSize,
+    );
+    graphics.destroy();
   }
 
   create() {
     console.log('PreloaderScene: create');
-    // Once assets are loaded, move to the MainMenuScene
-    this.scene.start('MainMenuScene');
+    const levelConfig = this.cache.json.get('level1_config') as LevelConfig;
+
+    if (!levelConfig) {
+      console.error(
+        'CRITICAL ERROR IN PRELOADER: Failed to get level1_config from cache!',
+      );
+      // Handle this critical error, maybe go to an error scene or try a default config object
+      // For now, let's try to proceed but expect issues, or simply don't start MainMenu if it's fatal
+      this.scene.start('MainMenuScene', {
+        levelIndex: 0,
+        levelConfig: undefined,
+      }); // Pass undefined to see it fail down the line
+      return;
+    }
+    console.log(
+      'PreloaderScene: level1_config loaded successfully:',
+      levelConfig,
+    );
+
+    this.scene.start('MainMenuScene', {
+      levelIndex: 0,
+      levelConfig: levelConfig,
+    });
   }
 }

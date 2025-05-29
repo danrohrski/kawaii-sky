@@ -1,0 +1,12 @@
+{
+  "levelName": "Sky Village Start",
+  "scrollSpeedMultiplier": 1.0,
+  "obstacleTypes": ["cloud_monster"],
+  "obstacleSpawnIntervalBase": 2500,
+  "collectibleTypes": ["cinnamon_roll", "coffee_cup"],
+  "collectibleSpawnIntervalBase": 1800,
+  "powerUpTypes": ["shield", "speed"],
+  "powerUpSpawnIntervalBase": 12000,
+  "skyColor": "#AEC6CF",
+  "levelDuration": 60
+}

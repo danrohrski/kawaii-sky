@@ -1,10 +1,5 @@
 import { create } from 'zustand';
-
-export enum PowerUpType {
-  SHIELD = 'shield',
-  SPEED = 'speed',
-  MAGNET = 'magnet',
-}
+import { LevelConfig, PowerUpType } from '@/game/levels/levelTypes'; // Ensure this is the only source for PowerUpType
 
 interface GameState {
   score: number;
@@ -23,45 +18,58 @@ interface GameState {
   isMagnetActive: boolean;
   magnetTimer: number;
 
+  currentLevelIndex: number; // 0-indexed
+  currentLevelConfig: LevelConfig | null;
+  gameTime: number; // To track level duration
+
   // Actions
   incrementScore: (amount: number) => void;
   decrementLives: () => void;
-  resetGame: () => void;
+  resetGame: (levelIndex?: number) => void; // Allow resetting to a specific level or default
   // Add other actions here
 
   // Power-up actions
   activatePowerUp: (type: PowerUpType, duration: number) => void;
   deactivatePowerUp: (type: PowerUpType) => void;
-  updatePowerUpTimers: (deltaTime: number) => void; // deltaTime in milliseconds
+  updatePowerUpTimers: (deltaTime: number) => void;
+  setCurrentLevel: (levelIndex: number, config: LevelConfig) => void;
+  incrementGameTime: (deltaTime: number) => void;
 }
 
-const useGameStore = create<GameState>((set, get) => ({
-  // Initial state
+const initialGameState = {
   score: 0,
-  lives: 3, // Default to 3 lives
-
+  lives: 3,
   isShieldActive: false,
   shieldTimer: 0,
   isSpeedActive: false,
   speedTimer: 0,
   isMagnetActive: false,
   magnetTimer: 0,
+  currentLevelIndex: 0,
+  currentLevelConfig: null,
+  gameTime: 0,
+};
 
-  // Actions implementation
+const useGameStore = create<GameState>((set, get) => ({
+  ...initialGameState,
+
   incrementScore: (amount) => set((state) => ({ score: state.score + amount })),
   decrementLives: () =>
-    set((state) => ({ lives: Math.max(0, state.lives - 1) })), // Prevent negative lives
-  resetGame: () =>
-    set({
-      score: 0,
-      lives: 3,
-      isShieldActive: false,
-      shieldTimer: 0,
-      isSpeedActive: false,
-      speedTimer: 0,
-      isMagnetActive: false,
-      magnetTimer: 0,
-    }),
+    set((state) => ({ lives: Math.max(0, state.lives - 1) })),
+  resetGame: (levelIndex = 0) =>
+    set((state) => ({
+      ...initialGameState,
+      currentLevelIndex: levelIndex,
+      // currentLevelConfig will be set by setCurrentLevel when a level actually starts
+      // If we want to persist currentLevelConfig across scene restarts (but not game overs),
+      // this reset logic would need to be more nuanced or currentLevelConfig handled outside resetGame.
+      // For now, resetGame clears it, implying it needs to be reloaded.
+      currentLevelConfig:
+        levelIndex === state.currentLevelIndex
+          ? state.currentLevelConfig
+          : null,
+      gameTime: 0,
+    })),
 
   activatePowerUp: (type, duration) => {
     switch (type) {
@@ -118,6 +126,16 @@ const useGameStore = create<GameState>((set, get) => ({
       if (newMagnetTimer === 0) deactivatePowerUp(PowerUpType.MAGNET);
     }
   },
+
+  setCurrentLevel: (levelIndex, config) =>
+    set({
+      currentLevelIndex: levelIndex,
+      currentLevelConfig: config,
+      gameTime: 0,
+    }),
+
+  incrementGameTime: (deltaTime) =>
+    set((state) => ({ gameTime: state.gameTime + deltaTime })),
 }));
 
 export default useGameStore;

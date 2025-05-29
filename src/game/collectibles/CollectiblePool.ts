@@ -1,11 +1,6 @@
 import Phaser from 'phaser';
-import {
-  Collectible,
-  CollectibleType,
-  CinnamonRoll,
-  CoffeeCup,
-  Star,
-} from './Collectible';
+import { Collectible, CinnamonRoll, CoffeeCup, Star } from './Collectible';
+import { CollectibleType } from '@/game/levels/levelTypes';
 
 export class CollectiblePool extends Phaser.GameObjects.Group {
   constructor(scene: Phaser.Scene) {

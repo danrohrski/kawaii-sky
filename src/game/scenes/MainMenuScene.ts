@@ -1,8 +1,18 @@
 import Phaser from 'phaser';
+import { LevelConfig } from '@/game/levels/levelTypes'; // Import LevelConfig
 
 export class MainMenuScene extends Phaser.Scene {
+  private levelConfig?: LevelConfig;
+  private levelIndex?: number;
+
   constructor() {
     super('MainMenuScene');
+  }
+
+  init(data: { levelIndex: number; levelConfig: LevelConfig }) {
+    this.levelIndex = data.levelIndex;
+    this.levelConfig = data.levelConfig;
+    console.log('MainMenuScene init with levelConfig:', this.levelConfig);
   }
 
   create() {
@@ -24,7 +34,10 @@ export class MainMenuScene extends Phaser.Scene {
 
     startButton.on('pointerdown', () => {
       console.log('Start Game button clicked');
-      this.scene.start('PlayScene');
+      this.scene.start('PlayScene', {
+        levelIndex: this.levelIndex,
+        levelConfig: this.levelConfig,
+      });
     });
 
     // Placeholder for settings, etc.

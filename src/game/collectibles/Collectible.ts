@@ -1,15 +1,10 @@
 import Phaser from 'phaser';
-
-export enum CollectibleType {
-  CINNAMON_ROLL = 'cinnamon_roll',
-  COFFEE_CUP = 'coffee_cup',
-  STAR = 'star',
-}
+import { CollectibleType } from '@/game/levels/levelTypes'; // Ensure this is the only source
 
 export interface CollectibleConfig {
   textureKey: string;
   points: number;
-  type: CollectibleType;
+  type: CollectibleType; // Should use the imported enum
 }
 
 const ROTATION_SPEED = 0.01; // Radians per frame for slow rotation
@@ -20,7 +15,7 @@ const CROISSANT_STAR_SCALE = 0.12; // Adjusted to 0.12
 
 export class Collectible extends Phaser.Physics.Arcade.Sprite {
   public pointsValue: number;
-  public collectibleType: CollectibleType;
+  public collectibleType: CollectibleType; // This must use the imported enum
   private collectTween: Phaser.Tweens.Tween | null = null;
 
   constructor(

@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
-import { PowerUpType } from '@/store/gameStore'; // Import from store for consistency
+import { PowerUpType } from '@/game/levels/levelTypes'; // Ensure this is the only source
 
 export interface PowerUpItemConfig {
   textureKey: string;
-  type: PowerUpType;
+  type: PowerUpType; // Should use the imported enum
   duration: number; // Duration this power-up lasts in milliseconds
 }
 
@@ -12,7 +12,7 @@ const MAGNET_ITEM_SCALE = 0.1; // Adjusted for large 400x408 magnet.png
 const SPEED_ITEM_SCALE = 0.2; // Adjusted to 0.2
 
 export class PowerUpItem extends Phaser.Physics.Arcade.Sprite {
-  public powerUpType: PowerUpType;
+  public powerUpType: PowerUpType; // This must use the imported enum
   public duration: number;
 
   constructor(

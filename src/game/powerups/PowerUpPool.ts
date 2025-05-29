@@ -5,7 +5,7 @@ import {
   SpeedPowerUpItem,
   MagnetPowerUpItem,
 } from './PowerUpItem';
-import { PowerUpType } from '@/store/gameStore';
+import { PowerUpType } from '@/game/levels/levelTypes';
 
 export class PowerUpPool extends Phaser.GameObjects.Group {
   constructor(scene: Phaser.Scene) {
