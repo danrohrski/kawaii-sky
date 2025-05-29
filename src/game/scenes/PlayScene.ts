@@ -2,12 +2,21 @@ import Phaser from 'phaser';
 import useGameStore from '@/store/gameStore'; // Import the store
 
 const CINNAMO_FLAP_VELOCITY = -300;
+// const CINNAMO_BURST_VELOCITY = -500; // Removed
 const CINNAMO_GRAVITY = 800;
 const CINNAMO_SCALE = 0.5; // Scale down Cinnamoroll if needed
+
+// const LONG_PRESS_DURATION = 500; // Removed
+// const CHARGE_METER_WIDTH = 100; // Removed
+// const CHARGE_METER_HEIGHT = 10; // Removed
 
 export class PlayScene extends Phaser.Scene {
   private cinnamoroll!: Phaser.Physics.Arcade.Sprite;
   private scoreText!: Phaser.GameObjects.Text; // To display score from store
+  // private pointerDownTime = 0; // Removed
+  // private longPressTimer?: Phaser.Time.TimerEvent; // Removed
+  // private isCharging = false; // Removed
+  // private chargeMeterGraphics!: Phaser.GameObjects.Graphics; // Removed
 
   constructor() {
     super('PlayScene');
@@ -57,9 +66,9 @@ export class PlayScene extends Phaser.Scene {
 
     this.cinnamoroll.play('idle'); // Start with idle animation
 
-    // Tap to flap mechanics
-    this.input.on('pointerdown', this.flap, this);
-    this.input.keyboard?.on('keydown-SPACE', this.flap, this);
+    // Simplified input handling
+    this.input.on('pointerdown', this.performFlap, this);
+    this.input.keyboard?.on('keydown-SPACE', this.performFlap, this);
 
     // Display score from Zustand store
     // Initial score display
@@ -94,21 +103,21 @@ export class PlayScene extends Phaser.Scene {
       .setOrigin(1, 0)
       .setInteractive();
 
-    quitButton.on('pointerdown', () => {
+    quitButton.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      // Stop this pointer event from bubbling up to the scene's pointerdown (which would cause a flap)
+      pointer.event.stopPropagation();
       this.scene.start('MainMenuScene');
     });
   }
 
-  flap() {
-    if (this.cinnamoroll) {
+  performFlap() {
+    if (this.cinnamoroll && this.cinnamoroll.active) {
       this.cinnamoroll.setVelocityY(CINNAMO_FLAP_VELOCITY);
-      this.cinnamoroll.play('flap', true); // Play flap animation
-      // After flap animation completes, return to idle
+      this.cinnamoroll.play('flap', true);
       this.cinnamoroll.once(
         Phaser.Animations.Events.ANIMATION_COMPLETE_KEY + 'flap',
         () => {
           if (this.cinnamoroll.active) {
-            // Check if sprite is still active
             this.cinnamoroll.play('idle', true);
           }
         },
@@ -117,20 +126,15 @@ export class PlayScene extends Phaser.Scene {
     }
   }
 
-  update() {
-    // Game loop logic here
-    // Example: Check if Cinnamoroll is out of bounds
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  update(_time: number, _delta: number) {
+    // Removed charge meter update logic
+
     if (
       this.cinnamoroll.y >
         this.cameras.main.height + this.cinnamoroll.displayHeight / 2 ||
       this.cinnamoroll.y < -(this.cinnamoroll.displayHeight / 2)
     ) {
-      // Placeholder: When Cinnamoroll goes off-screen, go back to main menu
-      // Later, this will be proper game over logic, potentially showing a game over screen
-      // and then resetting the game state (score, lives) via the store.
-      // For now, just directly starting MainMenuScene.
-      // Consider calling useGameStore.getState().decrementLives() or useGameStore.getState().resetGame() here
-      // depending on game over logic.
       this.scene.start('MainMenuScene');
     }
   }
