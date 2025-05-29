@@ -3,6 +3,8 @@ import useGameStore from '@/store/gameStore'; // Import the store
 // import { CloudMonsterPool, CloudMonster } from '@/game/obstacles/CloudMonsterPool'; // CloudMonster import removed
 import { CloudMonsterPool } from '@/game/obstacles/CloudMonsterPool';
 import { Obstacle } from '@/game/obstacles/Obstacle'; // Import Obstacle
+import { CollectiblePool } from '@/game/collectibles/CollectiblePool'; // Import CollectiblePool
+import { Collectible, CollectibleType } from '@/game/collectibles/Collectible'; // Import Collectible & Type
 
 const CINNAMO_FLAP_VELOCITY = -300;
 // const CINNAMO_BURST_VELOCITY = -500; // Removed
@@ -10,6 +12,8 @@ const CINNAMO_GRAVITY = 800;
 const CINNAMO_SCALE = 0.5; // Scale down Cinnamoroll if needed
 const OBSTACLE_SCROLL_SPEED = -150; // Speed at which obstacles move left
 const OBSTACLE_SPAWN_INTERVAL = 2000; // Spawn an obstacle every 2 seconds (adjust as needed)
+const COLLECTIBLE_SPAWN_INTERVAL = 1500; // Spawn collectible slightly more often
+const COLLECTIBLE_SCROLL_SPEED = -120; // Collectibles might scroll at a different speed
 const INVINCIBILITY_DURATION = 1500; // 1.5 seconds of invincibility
 
 // const LONG_PRESS_DURATION = 500; // Removed
@@ -21,6 +25,8 @@ export class PlayScene extends Phaser.Scene {
   private scoreText!: Phaser.GameObjects.Text; // To display score from store
   private cloudMonsterPool!: CloudMonsterPool;
   private obstacleSpawnTimer!: Phaser.Time.TimerEvent;
+  private collectiblePool!: CollectiblePool;
+  private collectibleSpawnTimer!: Phaser.Time.TimerEvent;
   private isInvincible = false;
   private invincibilityTimer?: Phaser.Time.TimerEvent;
   private blinkTween?: Phaser.Tweens.Tween; // For blinking effect
@@ -97,12 +103,31 @@ export class PlayScene extends Phaser.Scene {
       loop: true,
     });
 
+    // Collectibles
+    this.collectiblePool = new CollectiblePool(this);
+    this.collectibleSpawnTimer = this.time.addEvent({
+      delay: COLLECTIBLE_SPAWN_INTERVAL,
+      callback: this.spawnCollectible,
+      callbackScope: this,
+      loop: true,
+    });
+
     // Collision detection
     this.physics.add.collider(
       this.cinnamoroll,
       this.cloudMonsterPool,
       this
         .handlePlayerObstacleCollision as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+      undefined,
+      this,
+    );
+
+    // Collectible overlap detection
+    this.physics.add.overlap(
+      this.cinnamoroll,
+      this.collectiblePool,
+      this
+        .handlePlayerCollectibleOverlap as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
       undefined,
       this,
     );
@@ -161,6 +186,33 @@ export class PlayScene extends Phaser.Scene {
     this.cloudMonsterPool.getMonster(spawnX, spawnY, OBSTACLE_SCROLL_SPEED);
   }
 
+  spawnCollectible() {
+    const gameWidth = this.cameras.main.width;
+    const gameHeight = this.cameras.main.height;
+    const spawnX = gameWidth + 50;
+    const spawnY = Phaser.Math.Between(gameHeight * 0.2, gameHeight * 0.8);
+
+    // Weighted randomness for collectible types
+    const rand = Math.random();
+    let typeToSpawn: CollectibleType;
+    if (rand < 0.6) {
+      // 60% chance for Cinnamon Roll
+      typeToSpawn = CollectibleType.CINNAMON_ROLL;
+    } else if (rand < 0.9) {
+      // 30% chance for Coffee Cup (60 + 30 = 90)
+      typeToSpawn = CollectibleType.COFFEE_CUP;
+    } else {
+      // 10% chance for Star
+      typeToSpawn = CollectibleType.STAR;
+    }
+    this.collectiblePool.spawnCollectible(
+      spawnX,
+      spawnY,
+      COLLECTIBLE_SCROLL_SPEED,
+      typeToSpawn,
+    );
+  }
+
   handlePlayerObstacleCollision(
     player: Phaser.GameObjects.GameObject,
     obstacle: Phaser.GameObjects.GameObject,
@@ -178,6 +230,25 @@ export class PlayScene extends Phaser.Scene {
       (obstacle as Phaser.Physics.Arcade.Sprite).disableBody(true, true);
       this.playerHit();
     }
+  }
+
+  handlePlayerCollectibleOverlap(
+    player: Phaser.GameObjects.GameObject,
+    collectibleGO: Phaser.GameObjects.GameObject,
+  ) {
+    if (
+      !(player as Phaser.Physics.Arcade.Sprite).active ||
+      !(collectibleGO instanceof Collectible) ||
+      !collectibleGO.active
+    ) {
+      return;
+    }
+    const collectible = collectibleGO as Collectible;
+    useGameStore.getState().incrementScore(collectible.pointsValue);
+    console.log(
+      `Collected ${collectible.collectibleType}, +${collectible.pointsValue} points!`,
+    );
+    collectible.collect(); // Make it disappear and stop further interactions
   }
 
   playerHit() {
