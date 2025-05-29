@@ -22,26 +22,13 @@ export class PreloaderScene extends Phaser.Scene {
     // Load the new image
     this.load.image('cinnamon_roll_img', 'assets/sprites/cinnamon-roll.png');
 
-    // Placeholder textures for Collectibles
+    // Load coffee boba image
+    this.load.image('coffee_boba_img', 'assets/sprites/coffee-boba.png');
+
+    // Collectible Placeholders (Coffee, Star)
     const collectibleSize = 32;
     const graphics = this.make.graphics({ x: 0, y: 0 });
-
-    // Coffee Cup (e.g., dark grey circle)
-    graphics.fillStyle(0x5a5a5a, 1);
-    graphics.fillCircle(
-      collectibleSize / 2,
-      collectibleSize / 2,
-      collectibleSize / 2,
-    );
-    graphics.generateTexture(
-      'coffee_cup_placeholder',
-      collectibleSize,
-      collectibleSize,
-    );
-    graphics.clear();
-
-    // Star (e.g., yellow circle for now, can be a star shape later)
-    graphics.fillStyle(0xffd700, 1); // Gold/Yellow
+    graphics.fillStyle(0xffd700, 1); // Gold/Yellow for Star
     graphics.fillCircle(
       collectibleSize / 2,
       collectibleSize / 2,
@@ -51,6 +38,36 @@ export class PreloaderScene extends Phaser.Scene {
       'star_placeholder',
       collectibleSize,
       collectibleSize,
+    );
+    graphics.clear();
+
+    // Power-up Item Placeholders
+    const powerUpSize = 40;
+    // Shield (e.g., blue square)
+    graphics.fillStyle(0x0000ff, 1);
+    graphics.fillRect(0, 0, powerUpSize, powerUpSize);
+    graphics.generateTexture(
+      'shield_powerup_placeholder',
+      powerUpSize,
+      powerUpSize,
+    );
+    graphics.clear();
+    // Speed (e.g., green square)
+    graphics.fillStyle(0x00ff00, 1);
+    graphics.fillRect(0, 0, powerUpSize, powerUpSize);
+    graphics.generateTexture(
+      'speed_powerup_placeholder',
+      powerUpSize,
+      powerUpSize,
+    );
+    graphics.clear();
+    // Magnet (e.g., red square)
+    graphics.fillStyle(0xff0000, 1);
+    graphics.fillRect(0, 0, powerUpSize, powerUpSize);
+    graphics.generateTexture(
+      'magnet_powerup_placeholder',
+      powerUpSize,
+      powerUpSize,
     );
 
     graphics.destroy();

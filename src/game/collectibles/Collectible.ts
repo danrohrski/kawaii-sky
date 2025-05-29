@@ -14,6 +14,8 @@ export interface CollectibleConfig {
 
 const ROTATION_SPEED = 0.01; // Radians per frame for slow rotation
 const SHRINK_DURATION = 200; // Milliseconds to shrink when collected
+const CINNAMON_ROLL_SCALE = 0.4;
+const COFFEE_BOBA_SCALE = 0.2; // New scale for Coffee Boba
 
 export class Collectible extends Phaser.Physics.Arcade.Sprite {
   public pointsValue: number;
@@ -46,27 +48,24 @@ export class Collectible extends Phaser.Physics.Arcade.Sprite {
     this.setVelocityX(velocityX);
     this.setActive(true);
     this.setVisible(true);
-    this.setScale(
-      this.collectibleType === CollectibleType.CINNAMON_ROLL
-        ? CINNAMON_ROLL_SCALE
-        : 1,
-    ); // Apply initial scale
+
+    let newScale = 1;
+    if (this.collectibleType === CollectibleType.CINNAMON_ROLL) {
+      newScale = CINNAMON_ROLL_SCALE;
+    } else if (this.collectibleType === CollectibleType.COFFEE_CUP) {
+      newScale = COFFEE_BOBA_SCALE;
+    }
+    this.setScale(newScale);
     this.alpha = 1;
+
     if (this.body) {
       this.body.enable = true;
-      // Re-apply body size if needed, esp. after scale changes in spawn
-      if (this.collectibleType === CollectibleType.CINNAMON_ROLL) {
-        this.scene.time.delayedCall(10, () => {
-          // Ensure body updates after scale
-          if (this.body instanceof Phaser.Physics.Arcade.Body) {
-            this.body.setCircle(this.displayWidth / 2);
-          }
-        });
-      } else {
+      this.scene.time.delayedCall(10, () => {
+        // Ensure body updates after scale
         if (this.body instanceof Phaser.Physics.Arcade.Body) {
-          this.body.setCircle(this.width / 2); // For non-scaled items
+          this.body.setCircle(this.displayWidth / 2);
         }
-      }
+      });
     }
     if (this.collectTween) {
       this.collectTween.stop();
@@ -117,36 +116,25 @@ export class Collectible extends Phaser.Physics.Arcade.Sprite {
 
 // Specific Collectible Classes (can be in separate files later if they grow complex)
 
-const CINNAMON_ROLL_SCALE = 0.4; // Scale to 40% (60% smaller)
-
 export class CinnamonRoll extends Collectible {
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, {
-      textureKey: 'cinnamon_roll_img', // Use the actual image texture key
+      textureKey: 'cinnamon_roll_img',
       points: 10,
       type: CollectibleType.CINNAMON_ROLL,
     });
-    this.setScale(CINNAMON_ROLL_SCALE);
-
-    // Adjust physics body after scaling
-    // Wait for the body to be available
-    this.scene.time.delayedCall(10, () => {
-      if (this.body instanceof Phaser.Physics.Arcade.Body) {
-        // Set the body to be a circle based on the scaled width
-        // Note: this.width will give original texture width, so use displayWidth for scaled
-        this.body.setCircle(this.displayWidth / 2);
-      }
-    });
+    // Initial scaling now handled in base Collectible#spawn
   }
 }
 
 export class CoffeeCup extends Collectible {
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, {
-      textureKey: 'coffee_cup_placeholder',
-      points: 5, // Example: Coffee is worth less or has different effect
+      textureKey: 'coffee_boba_img', // Use the new texture key
+      points: 5,
       type: CollectibleType.COFFEE_CUP,
     });
+    // Initial scaling now handled in base Collectible#spawn
   }
 }
 

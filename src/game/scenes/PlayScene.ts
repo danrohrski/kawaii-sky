@@ -1,20 +1,26 @@
 import Phaser from 'phaser';
-import useGameStore from '@/store/gameStore'; // Import the store
+import useGameStore, { PowerUpType } from '@/store/gameStore'; // Import PowerUpType
 // import { CloudMonsterPool, CloudMonster } from '@/game/obstacles/CloudMonsterPool'; // CloudMonster import removed
 import { CloudMonsterPool } from '@/game/obstacles/CloudMonsterPool';
 import { Obstacle } from '@/game/obstacles/Obstacle'; // Import Obstacle
 import { CollectiblePool } from '@/game/collectibles/CollectiblePool'; // Import CollectiblePool
 import { Collectible, CollectibleType } from '@/game/collectibles/Collectible'; // Import Collectible & Type
+import { PowerUpPool } from '@/game/powerups/PowerUpPool'; // Import PowerUpPool
+import { PowerUpItem } from '@/game/powerups/PowerUpItem'; // Import PowerUpItem
 
-const CINNAMO_FLAP_VELOCITY = -300;
-// const CINNAMO_BURST_VELOCITY = -500; // Removed
+const CINNAMO_FLAP_VELOCITY_NORMAL = -300;
+let CINNAMO_FLAP_VELOCITY_CURRENT = CINNAMO_FLAP_VELOCITY_NORMAL;
+const CINNAMO_FLAP_VELOCITY_BOOSTED = -400; // For Speed PowerUp
 const CINNAMO_GRAVITY = 800;
 const CINNAMO_SCALE = 0.5; // Scale down Cinnamoroll if needed
 const OBSTACLE_SCROLL_SPEED = -150; // Speed at which obstacles move left
 const OBSTACLE_SPAWN_INTERVAL = 2000; // Spawn an obstacle every 2 seconds (adjust as needed)
 const COLLECTIBLE_SPAWN_INTERVAL = 1500; // Spawn collectible slightly more often
 const COLLECTIBLE_SCROLL_SPEED = -120; // Collectibles might scroll at a different speed
+const POWERUP_SPAWN_INTERVAL = 10000; // Spawn power-up every 10 seconds (example)
+const POWERUP_SCROLL_SPEED = -100;
 const INVINCIBILITY_DURATION = 1500; // 1.5 seconds of invincibility
+const MAGNET_RADIUS = 150; // Radius for magnet effect
 
 // const LONG_PRESS_DURATION = 500; // Removed
 // const CHARGE_METER_WIDTH = 100; // Removed
@@ -27,9 +33,12 @@ export class PlayScene extends Phaser.Scene {
   private obstacleSpawnTimer!: Phaser.Time.TimerEvent;
   private collectiblePool!: CollectiblePool;
   private collectibleSpawnTimer!: Phaser.Time.TimerEvent;
+  private powerUpPool!: PowerUpPool;
+  private powerUpSpawnTimer!: Phaser.Time.TimerEvent;
   private isInvincible = false;
   private invincibilityTimer?: Phaser.Time.TimerEvent;
   private blinkTween?: Phaser.Tweens.Tween; // For blinking effect
+  private shieldVisual?: Phaser.GameObjects.Ellipse; // For shield visual
   // private pointerDownTime = 0; // Removed
   // private longPressTimer?: Phaser.Time.TimerEvent; // Removed
   // private isCharging = false; // Removed
@@ -112,6 +121,15 @@ export class PlayScene extends Phaser.Scene {
       loop: true,
     });
 
+    // Power-ups
+    this.powerUpPool = new PowerUpPool(this);
+    this.powerUpSpawnTimer = this.time.addEvent({
+      delay: POWERUP_SPAWN_INTERVAL,
+      callback: this.spawnPowerUp,
+      callbackScope: this,
+      loop: true,
+    });
+
     // Collision detection
     this.physics.add.collider(
       this.cinnamoroll,
@@ -128,6 +146,16 @@ export class PlayScene extends Phaser.Scene {
       this.collectiblePool,
       this
         .handlePlayerCollectibleOverlap as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+      undefined,
+      this,
+    );
+
+    // Power-up overlap detection
+    this.physics.add.overlap(
+      this.cinnamoroll,
+      this.powerUpPool,
+      this
+        .handlePlayerPowerUpOverlap as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
       undefined,
       this,
     );
@@ -176,6 +204,18 @@ export class PlayScene extends Phaser.Scene {
       useGameStore.getState().resetGame(); // Reset score/lives when quitting to main menu
       this.scene.start('MainMenuScene');
     });
+
+    // Shield Visual (initially hidden)
+    this.shieldVisual = this.add.ellipse(
+      0,
+      0,
+      this.cinnamoroll.displayWidth + 20,
+      this.cinnamoroll.displayHeight + 20,
+      0x00ffff,
+      0.3,
+    );
+    this.shieldVisual.setDepth(9); // Behind Cinnamoroll but above background
+    this.shieldVisual.setVisible(false);
   }
 
   spawnObstacle() {
@@ -213,12 +253,40 @@ export class PlayScene extends Phaser.Scene {
     );
   }
 
+  spawnPowerUp() {
+    const gameWidth = this.cameras.main.width;
+    const gameHeight = this.cameras.main.height;
+    const spawnX = gameWidth + 50;
+    const spawnY = Phaser.Math.Between(gameHeight * 0.3, gameHeight * 0.7);
+    const powerUpTypes = [
+      PowerUpType.SHIELD,
+      PowerUpType.SPEED,
+      PowerUpType.MAGNET,
+    ];
+    const randomType =
+      powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+    this.powerUpPool.spawnPowerUp(
+      spawnX,
+      spawnY,
+      POWERUP_SCROLL_SPEED,
+      randomType,
+    );
+    console.log(`Spawned PowerUp: ${randomType}`);
+  }
+
   handlePlayerObstacleCollision(
     player: Phaser.GameObjects.GameObject,
     obstacle: Phaser.GameObjects.GameObject,
   ) {
     if (this.isInvincible || !(player as Phaser.Physics.Arcade.Sprite).active)
       return;
+
+    if (useGameStore.getState().isShieldActive) {
+      useGameStore.getState().deactivatePowerUp(PowerUpType.SHIELD);
+      (obstacle as Obstacle).despawn(); // Obstacle is destroyed by shield
+      console.log('Shield blocked an obstacle!');
+      return;
+    }
 
     if (obstacle instanceof Obstacle && obstacle.active) {
       obstacle.despawn();
@@ -251,6 +319,24 @@ export class PlayScene extends Phaser.Scene {
     collectible.collect(); // Make it disappear and stop further interactions
   }
 
+  handlePlayerPowerUpOverlap(
+    player: Phaser.GameObjects.GameObject,
+    powerUpGO: Phaser.GameObjects.GameObject,
+  ) {
+    if (
+      !(player as Phaser.Physics.Arcade.Sprite).active ||
+      !(powerUpGO instanceof PowerUpItem) ||
+      !powerUpGO.active
+    )
+      return;
+    const powerUp = powerUpGO as PowerUpItem;
+    useGameStore
+      .getState()
+      .activatePowerUp(powerUp.powerUpType, powerUp.duration);
+    console.log(`Collected PowerUp: ${powerUp.powerUpType}`);
+    powerUp.collect();
+  }
+
   playerHit() {
     if (this.isInvincible || !this.cinnamoroll.active) return;
 
@@ -262,6 +348,7 @@ export class PlayScene extends Phaser.Scene {
       if (this.blinkTween) this.blinkTween.stop(); // Stop blink on game over
       this.cinnamoroll.setAlpha(1); // Ensure visible on game over if was blinking
       useGameStore.getState().resetGame();
+      CINNAMO_FLAP_VELOCITY_CURRENT = CINNAMO_FLAP_VELOCITY_NORMAL; // Explicitly reset velocity variable
       this.scene.start('MainMenuScene');
     } else {
       console.log(`Player hit! Lives remaining: ${currentLives}`);
@@ -307,7 +394,7 @@ export class PlayScene extends Phaser.Scene {
 
   performFlap() {
     if (this.cinnamoroll && this.cinnamoroll.active) {
-      this.cinnamoroll.setVelocityY(CINNAMO_FLAP_VELOCITY);
+      this.cinnamoroll.setVelocityY(CINNAMO_FLAP_VELOCITY_CURRENT);
       this.cinnamoroll.play('flap', true);
       this.cinnamoroll.once(
         Phaser.Animations.Events.ANIMATION_COMPLETE_KEY + 'flap',
@@ -321,9 +408,45 @@ export class PlayScene extends Phaser.Scene {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  updateActivePowerUps(delta: number) {
+    useGameStore.getState().updatePowerUpTimers(delta);
+    const { isShieldActive, isSpeedActive, isMagnetActive } =
+      useGameStore.getState();
+
+    // Shield visual
+    this.shieldVisual?.setVisible(isShieldActive);
+    if (isShieldActive && this.shieldVisual) {
+      this.shieldVisual.setPosition(this.cinnamoroll.x, this.cinnamoroll.y);
+      this.shieldVisual.setStrokeStyle(2, 0x00ffff, 0.8); // Blinking or pulsing effect could be added
+    }
+
+    // Speed effect
+    CINNAMO_FLAP_VELOCITY_CURRENT = isSpeedActive
+      ? CINNAMO_FLAP_VELOCITY_BOOSTED
+      : CINNAMO_FLAP_VELOCITY_NORMAL;
+    this.cinnamoroll.setTint(isSpeedActive ? 0x00ff00 : 0xffffff); // Green tint for speed
+
+    // Magnet effect
+    if (isMagnetActive) {
+      this.collectiblePool.getChildren().forEach((collectibleGO) => {
+        if (collectibleGO instanceof Collectible && collectibleGO.active) {
+          const distance = Phaser.Math.Distance.BetweenPoints(
+            this.cinnamoroll,
+            collectibleGO,
+          );
+          if (distance < MAGNET_RADIUS) {
+            this.physics.moveToObject(collectibleGO, this.cinnamoroll, 200); // Attract speed 200
+          }
+        }
+      });
+    }
+  }
+
+   
   update(_time: number, _delta: number) {
     if (!this.cinnamoroll.active) return;
+
+    this.updateActivePowerUps(_delta);
 
     if (
       this.cinnamoroll.y >

@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import useGameStore from '@/store/gameStore';
 import ScoreBar from '@/components/ui/ScoreBar';
 import PauseButton from '@/components/ui/PauseButton';
+import PowerUpTimersDisplay from '@/components/ui/PowerUpTimersDisplay';
 
 const GameCanvas = dynamic(() => import('@/components/GameCanvas'), {
   ssr: false,
@@ -19,6 +20,7 @@ export default function Home() {
       {/* <h1>Hello World - Test</h1> */}
       <ScoreBar />
       <PauseButton />
+      <PowerUpTimersDisplay />
       <h1 className="text-5xl font-bold mb-8 text-pastel-pink drop-shadow-lg">
         Cinnamoroll&apos;s Cinnamon Sky
       </h1>
