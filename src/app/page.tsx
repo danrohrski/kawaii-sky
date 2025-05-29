@@ -3,6 +3,8 @@
 // import GameCanvas from '@/components/GameCanvas'; // Original import
 import dynamic from 'next/dynamic';
 import useGameStore from '@/store/gameStore'; // Import the store
+import ScoreBar from '@/components/ui/ScoreBar'; // Import ScoreBar
+import PauseButton from '@/components/ui/PauseButton'; // Import PauseButton
 
 // Dynamically import GameCanvas with SSR turned off
 const GameCanvas = dynamic(() => import('@/components/GameCanvas'), {
@@ -13,16 +15,18 @@ const GameCanvas = dynamic(() => import('@/components/GameCanvas'), {
 // import Image from 'next/image'; // Keep if needed for other UI, remove if not
 
 export default function Home() {
-  // Subscribe to score changes from the Zustand store
-  const score = useGameStore((state) => state.score);
-  const lives = useGameStore((state) => state.lives);
+  // We can keep these here if other parts of Home need them, or remove if only ScoreBar uses them.
+  // const score = useGameStore((state) => state.score);
+  // const lives = useGameStore((state) => state.lives);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-pastel-blue text-cinnamon-brown">
-      <div className="absolute top-4 left-4 p-4 bg-pastel-pink/80 rounded-lg shadow-md">
+    <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-pastel-blue text-cinnamon-brown relative">
+      <ScoreBar /> {/* Add ScoreBar component here */}
+      <PauseButton /> {/* Add PauseButton component here */}
+      {/* <div className="absolute top-4 left-4 p-4 bg-pastel-pink/80 rounded-lg shadow-md">
         <h2 className="text-2xl font-bold">Score: {score}</h2>
         <p className="text-lg">Lives: {lives}</p>
-      </div>
+      </div> */}
       <h1 className="text-5xl font-bold mb-8 text-pastel-pink drop-shadow-lg">
         Cinnamoroll&apos;s Cinnamon Sky
       </h1>
