@@ -16,12 +16,8 @@ export class PreloaderScene extends Phaser.Scene {
       frameHeight: 140,
     });
 
-    // Placeholder texture for Cloud Monster (a simple rectangle)
-    const graphics = this.make.graphics({ x: 0, y: 0 });
-    graphics.fillStyle(0x808080, 1); // Grey color
-    graphics.fillRect(0, 0, 50, 50); // 50x50 rectangle
-    graphics.generateTexture('cloud_monster_placeholder', 50, 50);
-    graphics.destroy();
+    // Load the cloud obstacle image
+    this.load.image('cloud_obstacle', 'assets/sprites/cloud.png');
 
     // Example: this.load.image('sky', 'assets/sky.png');
   }

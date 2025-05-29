@@ -24,7 +24,7 @@ const GameCanvas = () => {
           default: 'arcade',
           arcade: {
             gravity: { x: 0, y: 0 }, // Global gravity, can be overridden per object
-            // debug: true // Set to true for physics debugging visuals
+            debug: true, // Set to true for physics debugging visuals
           },
         },
         scene: [PreloaderScene, MainMenuScene, PlayScene], // Add all scenes here
