@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
+import useGameStore from '@/store/gameStore'; // Import the store
 
 const CINNAMO_FLAP_VELOCITY = -300;
 const CINNAMO_GRAVITY = 800;
 
 export class PlayScene extends Phaser.Scene {
   private cinnamoroll!: Phaser.Physics.Arcade.Sprite;
+  private scoreText!: Phaser.GameObjects.Text; // To display score from store
 
   constructor() {
     super('PlayScene');
@@ -31,11 +33,27 @@ export class PlayScene extends Phaser.Scene {
     this.input.on('pointerdown', this.flap, this);
     this.input.keyboard?.on('keydown-SPACE', this.flap, this);
 
-    // Placeholder for score display
-    this.add.text(10, 10, 'Score: 0 (TODO)', {
-      fontSize: '20px',
-      color: '#FFF',
+    // Display score from Zustand store
+    // Initial score display
+    this.scoreText = this.add.text(
+      10,
+      10,
+      `Score: ${useGameStore.getState().score}`,
+      {
+        fontSize: '20px',
+        color: '#FFF',
+      },
+    );
+
+    // Subscribe to score changes in the store to update the text
+    // Note: This basic subscription updates on any store change. For more complex stores,
+    // you might want more granular subscriptions or selectors if performance becomes an issue.
+    useGameStore.subscribe((state) => {
+      this.scoreText.setText(`Score: ${state.score}`);
     });
+
+    // Reset score on scene start for now (or if coming from game over)
+    useGameStore.getState().resetGame();
 
     // Add a quit button to go back to the main menu
     const quitButton = this.add
@@ -56,6 +74,8 @@ export class PlayScene extends Phaser.Scene {
   flap() {
     if (this.cinnamoroll) {
       this.cinnamoroll.setVelocityY(CINNAMO_FLAP_VELOCITY);
+      // Increment score in Zustand store for demonstration
+      useGameStore.getState().incrementScore(1);
     }
   }
 
@@ -66,9 +86,13 @@ export class PlayScene extends Phaser.Scene {
       this.cinnamoroll.y > this.cameras.main.height + this.cinnamoroll.height ||
       this.cinnamoroll.y < -this.cinnamoroll.height
     ) {
-      // For now, just restart the scene if Cinnamoroll goes off screen
-      // Later, this will be proper game over logic
-      // this.scene.restart();
+      // Placeholder: When Cinnamoroll goes off-screen, go back to main menu
+      // Later, this will be proper game over logic, potentially showing a game over screen
+      // and then resetting the game state (score, lives) via the store.
+      // For now, just directly starting MainMenuScene.
+      // Consider calling useGameStore.getState().decrementLives() or useGameStore.getState().resetGame() here
+      // depending on game over logic.
+      this.scene.start('MainMenuScene');
     }
   }
 }
