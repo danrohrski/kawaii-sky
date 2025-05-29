@@ -1,0 +1,8 @@
+# This file assigns ownership for parts of the codebase.
+# Lines starting with # are comments.
+# Each line is a file pattern followed by one or more owners.
+
+# Examples:
+# * @everyone
+# *.js @js-owner
+# /docs/ @docs-owner
