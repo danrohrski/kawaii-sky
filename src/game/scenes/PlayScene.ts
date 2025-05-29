@@ -404,7 +404,6 @@ export class PlayScene extends Phaser.Scene {
           }
         },
       );
-      useGameStore.getState().incrementScore(1);
     }
   }
 
@@ -442,7 +441,6 @@ export class PlayScene extends Phaser.Scene {
     }
   }
 
-   
   update(_time: number, _delta: number) {
     if (!this.cinnamoroll.active) return;
 

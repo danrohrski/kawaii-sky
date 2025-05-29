@@ -16,6 +16,7 @@ const ROTATION_SPEED = 0.01; // Radians per frame for slow rotation
 const SHRINK_DURATION = 200; // Milliseconds to shrink when collected
 const CINNAMON_ROLL_SCALE = 0.4;
 const COFFEE_BOBA_SCALE = 0.2; // New scale for Coffee Boba
+const CROISSANT_STAR_SCALE = 0.12; // Adjusted to 0.12
 
 export class Collectible extends Phaser.Physics.Arcade.Sprite {
   public pointsValue: number;
@@ -35,12 +36,21 @@ export class Collectible extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    if (this.body) {
-      // Set a circular body for better overlap detection with Cinnamoroll
-      (this.body as Phaser.Physics.Arcade.Body).setCircle(this.width / 2);
-      // No need for isSensor, we'll use overlap checks
+    this.setOrigin(0.5, 0.5);
+    // Physics body circle will be set in the spawn method after scaling and texture is applied
+  }
+
+  determineScale(): number {
+    switch (this.collectibleType) {
+      case CollectibleType.CINNAMON_ROLL:
+        return CINNAMON_ROLL_SCALE;
+      case CollectibleType.COFFEE_CUP:
+        return COFFEE_BOBA_SCALE;
+      case CollectibleType.STAR:
+        return CROISSANT_STAR_SCALE; // Use new scale for Star
+      default:
+        return 1.0;
     }
-    this.setOrigin(0.5, 0.5); // Ensure rotation is around the center
   }
 
   spawn(x: number, y: number, velocityX: number) {
@@ -48,29 +58,46 @@ export class Collectible extends Phaser.Physics.Arcade.Sprite {
     this.setVelocityX(velocityX);
     this.setActive(true);
     this.setVisible(true);
-
-    let newScale = 1;
-    if (this.collectibleType === CollectibleType.CINNAMON_ROLL) {
-      newScale = CINNAMON_ROLL_SCALE;
-    } else if (this.collectibleType === CollectibleType.COFFEE_CUP) {
-      newScale = COFFEE_BOBA_SCALE;
-    }
-    this.setScale(newScale);
     this.alpha = 1;
 
-    if (this.body) {
-      this.body.enable = true;
-      this.scene.time.delayedCall(10, () => {
-        // Ensure body updates after scale
-        if (this.body instanceof Phaser.Physics.Arcade.Body) {
-          this.body.setCircle(this.displayWidth / 2);
-        }
-      });
-    }
+    const scaleToApply = this.determineScale();
+    this.setScale(scaleToApply);
+
     if (this.collectTween) {
       this.collectTween.stop();
       this.collectTween = null;
     }
+
+    this.scene.time.delayedCall(10, () => {
+      // Slightly longer delay to be safer
+      if (
+        !this.active ||
+        !this.body ||
+        !(this.body instanceof Phaser.Physics.Arcade.Body)
+      )
+        return;
+
+      const texture = this.scene.textures.get(this.texture.key);
+      let diameter = this.displayWidth; // Default/fallback diameter
+
+      if (texture && texture.key !== '__MISSING') {
+        const sourceImage = texture.getSourceImage();
+        if (sourceImage && sourceImage.width > 0) {
+          const originalWidth = sourceImage.width; // Assuming texture is roughly square/circular
+          diameter = originalWidth * scaleToApply;
+        } else if (this.width > 0) {
+          // Fallback for placeholders from graphics
+          diameter = this.width * scaleToApply;
+        }
+      }
+      diameter = Math.max(2, diameter); // Ensure diameter is at least 2 (radius 1)
+
+      this.body.setSize(diameter, diameter); // Set body to a square of the scaled diameter
+      this.body.setCircle(diameter / 2); // Make this square body behave as a circle
+      // No explicit setOffset, as setSize on a body attached to a sprite with (0.5,0.5) origin should center it.
+
+      this.body.enable = true;
+    });
   }
 
   collect() {
@@ -141,8 +168,8 @@ export class CoffeeCup extends Collectible {
 export class Star extends Collectible {
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, {
-      textureKey: 'star_placeholder',
-      points: 25, // Example: Stars are worth more
+      textureKey: 'croissant_star_img', // Use the croissant image texture key
+      points: 25,
       type: CollectibleType.STAR,
     });
   }

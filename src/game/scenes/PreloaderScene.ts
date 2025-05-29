@@ -25,50 +25,26 @@ export class PreloaderScene extends Phaser.Scene {
     // Load coffee boba image
     this.load.image('coffee_boba_img', 'assets/sprites/coffee-boba.png');
 
-    // Collectible Placeholders (Coffee, Star)
-    const collectibleSize = 32;
-    const graphics = this.make.graphics({ x: 0, y: 0 });
-    graphics.fillStyle(0xffd700, 1); // Gold/Yellow for Star
-    graphics.fillCircle(
-      collectibleSize / 2,
-      collectibleSize / 2,
-      collectibleSize / 2,
-    );
-    graphics.generateTexture(
-      'star_placeholder',
-      collectibleSize,
-      collectibleSize,
-    );
-    graphics.clear();
+    // Load croissant image
+    this.load.image('croissant_star_img', 'assets/sprites/croissant-star.png');
 
-    // Power-up Item Placeholders
+    // Load actual Power-Up Item images
+    this.load.image('shield_item_img', 'assets/sprites/shield.png');
+    this.load.image('magnet_item_img', 'assets/sprites/magnet.png');
+
+    // No more collectible placeholders needed for now
+    const graphics = this.make.graphics({ x: 0, y: 0 });
+
+    // Power-up Item Placeholder (Only Speed left)
     const powerUpSize = 40;
-    // Shield (e.g., blue square)
-    graphics.fillStyle(0x0000ff, 1);
-    graphics.fillRect(0, 0, powerUpSize, powerUpSize);
-    graphics.generateTexture(
-      'shield_powerup_placeholder',
-      powerUpSize,
-      powerUpSize,
-    );
-    graphics.clear();
-    // Speed (e.g., green square)
-    graphics.fillStyle(0x00ff00, 1);
+    graphics.fillStyle(0x00ff00, 1); // Green for speed
     graphics.fillRect(0, 0, powerUpSize, powerUpSize);
     graphics.generateTexture(
       'speed_powerup_placeholder',
       powerUpSize,
       powerUpSize,
     );
-    graphics.clear();
-    // Magnet (e.g., red square)
-    graphics.fillStyle(0xff0000, 1);
-    graphics.fillRect(0, 0, powerUpSize, powerUpSize);
-    graphics.generateTexture(
-      'magnet_powerup_placeholder',
-      powerUpSize,
-      powerUpSize,
-    );
+    graphics.clear(); // Clear after last placeholder generation
 
     graphics.destroy();
   }
