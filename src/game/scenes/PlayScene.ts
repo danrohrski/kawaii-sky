@@ -3,6 +3,7 @@ import useGameStore from '@/store/gameStore'; // Import the store
 
 const CINNAMO_FLAP_VELOCITY = -300;
 const CINNAMO_GRAVITY = 800;
+const CINNAMO_SCALE = 0.5; // Scale down Cinnamoroll if needed
 
 export class PlayScene extends Phaser.Scene {
   private cinnamoroll!: Phaser.Physics.Arcade.Sprite;
@@ -17,17 +18,44 @@ export class PlayScene extends Phaser.Scene {
     // Placeholder sky
     this.cameras.main.setBackgroundColor('#AEC6CF'); // pastel-blue
 
-    // Placeholder Cinnamoroll sprite (a white rectangle for now)
+    // Cinnamoroll sprite using the loaded sheet
     this.cinnamoroll = this.physics.add.sprite(
       this.cameras.main.width / 4,
       this.cameras.main.height / 2,
-      '__MISSING', // Using a non-existent texture key intentionally for a white box
+      'cinnamoroll_sheet', // Key of the loaded spritesheet
+      0, // Start with the first frame (index 0)
     );
-    this.cinnamoroll.setSize(40, 30); // Set a custom size for the physics body
-    // this.cinnamoroll.setCollideWorldBounds(true); // Optional: keep Cinnamoroll within game bounds
+    this.cinnamoroll.setScale(CINNAMO_SCALE);
+    // Adjust physics body size after scaling if necessary.
+    // For simplicity, we assume the scaled size is okay for now.
+    // If collisions are inaccurate, we might need: this.cinnamoroll.body.setSize(width * scale, height * scale);
 
     // Apply gravity
     this.cinnamoroll.setGravityY(CINNAMO_GRAVITY);
+
+    // Define animations
+    // Idle animation (assuming frame 0 is idle)
+    this.anims.create({
+      key: 'idle',
+      frames: [{ key: 'cinnamoroll_sheet', frame: 0 }],
+      frameRate: 10, // Not really used for single frame anim, but good practice
+      repeat: -1,
+    });
+
+    // Flap animation (assuming frame 1 is the flap pose, or a sequence)
+    // If flap is a single frame, it might look better to just set the frame directly on flap
+    // and then revert. For a multi-frame flap animation:
+    this.anims.create({
+      key: 'flap',
+      frames: this.anims.generateFrameNumbers('cinnamoroll_sheet', {
+        start: 0,
+        end: 1,
+      }), // Example: use frame 0 then 1
+      frameRate: 10,
+      repeat: 0, // Play once
+    });
+
+    this.cinnamoroll.play('idle'); // Start with idle animation
 
     // Tap to flap mechanics
     this.input.on('pointerdown', this.flap, this);
@@ -74,7 +102,17 @@ export class PlayScene extends Phaser.Scene {
   flap() {
     if (this.cinnamoroll) {
       this.cinnamoroll.setVelocityY(CINNAMO_FLAP_VELOCITY);
-      // Increment score in Zustand store for demonstration
+      this.cinnamoroll.play('flap', true); // Play flap animation
+      // After flap animation completes, return to idle
+      this.cinnamoroll.once(
+        Phaser.Animations.Events.ANIMATION_COMPLETE_KEY + 'flap',
+        () => {
+          if (this.cinnamoroll.active) {
+            // Check if sprite is still active
+            this.cinnamoroll.play('idle', true);
+          }
+        },
+      );
       useGameStore.getState().incrementScore(1);
     }
   }
@@ -83,8 +121,9 @@ export class PlayScene extends Phaser.Scene {
     // Game loop logic here
     // Example: Check if Cinnamoroll is out of bounds
     if (
-      this.cinnamoroll.y > this.cameras.main.height + this.cinnamoroll.height ||
-      this.cinnamoroll.y < -this.cinnamoroll.height
+      this.cinnamoroll.y >
+        this.cameras.main.height + this.cinnamoroll.displayHeight / 2 ||
+      this.cinnamoroll.y < -(this.cinnamoroll.displayHeight / 2)
     ) {
       // Placeholder: When Cinnamoroll goes off-screen, go back to main menu
       // Later, this will be proper game over logic, potentially showing a game over screen

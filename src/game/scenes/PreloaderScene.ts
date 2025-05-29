@@ -10,8 +10,13 @@ export class PreloaderScene extends Phaser.Scene {
     // Later, this is where we'll load images, spritesheets, audio, etc.
     console.log('PreloaderScene: preload');
 
+    // Load the Cinnamoroll sprite sheet
+    this.load.spritesheet('cinnamoroll_sheet', 'assets/sprites/flap-test.png', {
+      frameWidth: 164,
+      frameHeight: 140,
+    });
+
     // Example: this.load.image('sky', 'assets/sky.png');
-    // Example: this.load.spritesheet('cinnamoroll', 'assets/cinnamoroll.png', { frameWidth: 32, frameHeight: 48 });
   }
 
   create() {
