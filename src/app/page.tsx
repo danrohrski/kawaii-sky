@@ -1,6 +1,14 @@
 'use client'; // Mark as a Client Component
 
-import GameCanvas from '@/components/GameCanvas';
+// import GameCanvas from '@/components/GameCanvas'; // Original import
+import dynamic from 'next/dynamic';
+
+// Dynamically import GameCanvas with SSR turned off
+const GameCanvas = dynamic(() => import('@/components/GameCanvas'), {
+  ssr: false,
+  loading: () => <p>Loading Game...</p>, // Optional loading component
+});
+
 // import Image from 'next/image'; // Keep if needed for other UI, remove if not
 
 export default function Home() {
