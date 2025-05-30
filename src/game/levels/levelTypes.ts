@@ -27,5 +27,5 @@ export interface LevelConfig {
   powerUpTypes: PowerUpType[];
   powerUpSpawnIntervalBase: number;
   skyColor: string;
-  levelDuration?: number;
+  targetScoreToAdvance: number;
 }

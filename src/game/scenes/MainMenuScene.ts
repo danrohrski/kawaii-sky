@@ -1,18 +1,32 @@
 import Phaser from 'phaser';
 import { LevelConfig } from '@/game/levels/levelTypes'; // Import LevelConfig
+import useGameStore from '@/store/gameStore'; // Import store
 
 export class MainMenuScene extends Phaser.Scene {
   private levelConfig?: LevelConfig;
-  private levelIndex?: number;
+  private levelIndexToPlay!: number;
 
   constructor() {
     super('MainMenuScene');
   }
 
-  init(data: { levelIndex: number; levelConfig: LevelConfig }) {
-    this.levelIndex = data.levelIndex;
-    this.levelConfig = data.levelConfig;
-    console.log('MainMenuScene init with levelConfig:', this.levelConfig);
+  init(data?: { levelIndex?: number; levelConfig?: LevelConfig }) {
+    if (data && typeof data.levelIndex === 'number' && data.levelConfig) {
+      this.levelIndexToPlay = data.levelIndex;
+      this.levelConfig = data.levelConfig;
+      console.log(
+        `MainMenuScene: init with preloaded Level ${this.levelIndexToPlay} Config:`,
+        this.levelConfig.levelName,
+      );
+    } else {
+      // No specific level preloaded (e.g., game just started, or came from a simple quit)
+      // Get the current level index from the store to decide what to play next.
+      this.levelIndexToPlay = useGameStore.getState().currentLevelIndex;
+      this.levelConfig = undefined; // Needs to be loaded by Preloader
+      console.log(
+        `MainMenuScene: init, will play/load level index ${this.levelIndexToPlay} from store.`,
+      );
+    }
   }
 
   create() {
@@ -33,11 +47,25 @@ export class MainMenuScene extends Phaser.Scene {
       .setInteractive();
 
     startButton.on('pointerdown', () => {
-      console.log('Start Game button clicked');
-      this.scene.start('PlayScene', {
-        levelIndex: this.levelIndex,
-        levelConfig: this.levelConfig,
-      });
+      console.log(
+        'Start Game button clicked for level index:',
+        this.levelIndexToPlay,
+      );
+      if (this.levelConfig) {
+        // Config already loaded and passed to init (likely from Preloader or PlayScene game over)
+        this.scene.start('PlayScene', {
+          levelIndex: this.levelIndexToPlay,
+          levelConfig: this.levelConfig,
+        });
+      } else {
+        // Config not available, means we need Preloader to load it for levelIndexToPlay
+        console.log(
+          `MainMenuScene: No preloaded config, starting Preloader for level index ${this.levelIndexToPlay}`,
+        );
+        this.scene.start('PreloaderScene', {
+          levelIndex: this.levelIndexToPlay,
+        });
+      }
     });
 
     // Placeholder for settings, etc.

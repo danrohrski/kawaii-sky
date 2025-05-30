@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { LevelConfig, PowerUpType } from '@/game/levels/levelTypes'; // Ensure this is the only source for PowerUpType
 
+// Assume a total number of levels. This could come from a config file later.
+const MAX_LEVEL_INDEX = 1; // For level1 (index 0) and level2 (index 1)
+
 interface GameState {
   score: number;
   lives: number;
@@ -25,18 +28,17 @@ interface GameState {
   // Actions
   incrementScore: (amount: number) => void;
   decrementLives: () => void;
-  resetGame: (levelIndex?: number) => void; // Allow resetting to a specific level or default
-  // Add other actions here
+  resetGameSession: () => void; // Full reset for game over or quit
+  advanceToNextLevel: () => void; // Advances level, keeps score/lives
+  setCurrentLevelConfig: (levelIndex: number, config: LevelConfig) => void; // Sets current loaded level
 
   // Power-up actions
   activatePowerUp: (type: PowerUpType, duration: number) => void;
   deactivatePowerUp: (type: PowerUpType) => void;
   updatePowerUpTimers: (deltaTime: number) => void;
-  setCurrentLevel: (levelIndex: number, config: LevelConfig) => void;
-  incrementGameTime: (deltaTime: number) => void;
 }
 
-const initialGameState = {
+const initialGameSessionState = {
   score: 0,
   lives: 3,
   isShieldActive: false,
@@ -51,25 +53,48 @@ const initialGameState = {
 };
 
 const useGameStore = create<GameState>((set, get) => ({
-  ...initialGameState,
+  ...initialGameSessionState,
 
   incrementScore: (amount) => set((state) => ({ score: state.score + amount })),
   decrementLives: () =>
     set((state) => ({ lives: Math.max(0, state.lives - 1) })),
-  resetGame: (levelIndex = 0) =>
+
+  resetGameSession: () => {
+    console.log('Store: resetGameSession called');
+    set(initialGameSessionState);
+  },
+
+  advanceToNextLevel: () => {
+    const currentIdx = get().currentLevelIndex;
+    const nextIdx = (currentIdx + 1) % (MAX_LEVEL_INDEX + 1); // Loop back for now
+    console.log(`Store: advanceToNextLevel from ${currentIdx} to ${nextIdx}`);
     set((state) => ({
-      ...initialGameState,
+      // Keep score and lives from current state
+      score: state.score,
+      lives: state.lives,
+      // Reset power-ups and timers
+      isShieldActive: false,
+      shieldTimer: 0,
+      isSpeedActive: false,
+      speedTimer: 0,
+      isMagnetActive: false,
+      magnetTimer: 0,
+      // Update level index and clear config (to be loaded by Preloader)
+      currentLevelIndex: nextIdx,
+      currentLevelConfig: null,
+    }));
+  },
+
+  setCurrentLevelConfig: (levelIndex, config) => {
+    console.log(
+      `Store: setCurrentLevelConfig for index ${levelIndex}:`,
+      config?.levelName,
+    );
+    set({
       currentLevelIndex: levelIndex,
-      // currentLevelConfig will be set by setCurrentLevel when a level actually starts
-      // If we want to persist currentLevelConfig across scene restarts (but not game overs),
-      // this reset logic would need to be more nuanced or currentLevelConfig handled outside resetGame.
-      // For now, resetGame clears it, implying it needs to be reloaded.
-      currentLevelConfig:
-        levelIndex === state.currentLevelIndex
-          ? state.currentLevelConfig
-          : null,
-      gameTime: 0,
-    })),
+      currentLevelConfig: config,
+    });
+  },
 
   activatePowerUp: (type, duration) => {
     switch (type) {
@@ -109,7 +134,6 @@ const useGameStore = create<GameState>((set, get) => ({
       magnetTimer,
       deactivatePowerUp,
     } = get();
-
     if (isShieldActive) {
       const newShieldTimer = Math.max(0, shieldTimer - deltaTime);
       set({ shieldTimer: newShieldTimer });
@@ -126,16 +150,6 @@ const useGameStore = create<GameState>((set, get) => ({
       if (newMagnetTimer === 0) deactivatePowerUp(PowerUpType.MAGNET);
     }
   },
-
-  setCurrentLevel: (levelIndex, config) =>
-    set({
-      currentLevelIndex: levelIndex,
-      currentLevelConfig: config,
-      gameTime: 0,
-    }),
-
-  incrementGameTime: (deltaTime) =>
-    set((state) => ({ gameTime: state.gameTime + deltaTime })),
 }));
 
 export default useGameStore;

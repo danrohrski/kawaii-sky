@@ -1,0 +1,12 @@
+{
+  "levelName": "Cinnamon Forest Approach",
+  "scrollSpeedMultiplier": 1.1,
+  "obstacleTypes": ["cloud_monster"],
+  "obstacleSpawnIntervalBase": 2200,
+  "collectibleTypes": ["cinnamon_roll", "coffee_cup", "star"],
+  "collectibleSpawnIntervalBase": 1700,
+  "powerUpTypes": ["shield", "speed", "magnet"],
+  "powerUpSpawnIntervalBase": 11000,
+  "skyColor": "#ADD8E6",
+  "targetScoreToAdvance": 250
+}

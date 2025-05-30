@@ -2,14 +2,28 @@ import Phaser from 'phaser';
 import { LevelConfig } from '@/game/levels/levelTypes'; // Import LevelConfig
 
 export class PreloaderScene extends Phaser.Scene {
+  private levelToLoadIndex = 0; // Default to level 0 (level1.json)
+
   constructor() {
     super('PreloaderScene');
   }
 
+  init(data: { levelIndex?: number }) {
+    if (typeof data.levelIndex === 'number') {
+      this.levelToLoadIndex = data.levelIndex;
+    }
+    console.log(
+      `PreloaderScene: init to load level index ${this.levelToLoadIndex}`,
+    );
+  }
+
   preload() {
+    console.log(
+      'PreloaderScene: preload for level index',
+      this.levelToLoadIndex,
+    );
     // For now, we'll just display a loading message
     // Later, this is where we'll load images, spritesheets, audio, etc.
-    console.log('PreloaderScene: preload');
 
     // Load the Cinnamoroll sprite sheet
     this.load.spritesheet('cinnamoroll_sheet', 'assets/sprites/flap-test.png', {
@@ -34,9 +48,13 @@ export class PreloaderScene extends Phaser.Scene {
     this.load.image('magnet_item_img', 'assets/sprites/magnet.png');
     this.load.image('speed_shoe_img', 'assets/sprites/speed-shoe.png');
 
-    // Load level configuration JSON
-    // For now, always load level 1. Later, this could be dynamic based on gameStore.currentLevelIndex
-    this.load.json('level1_config', 'assets/levels/level1.json');
+    // Dynamically load level configuration JSON
+    const levelJsonFileName = `level${this.levelToLoadIndex + 1}.json`; // e.g., level1.json, level2.json
+    const levelConfigKey = `level${this.levelToLoadIndex}_config`; // e.g., level0_config, level1_config
+    this.load.json(levelConfigKey, `assets/levels/${levelJsonFileName}`);
+    console.log(
+      `PreloaderScene: attempting to load ${levelJsonFileName} with key ${levelConfigKey}`,
+    );
 
     // Assuming speed_powerup_placeholder is still generated if speed_shoe_img is not final
     const powerUpSize = 40;
@@ -53,27 +71,26 @@ export class PreloaderScene extends Phaser.Scene {
 
   create() {
     console.log('PreloaderScene: create');
-    const levelConfig = this.cache.json.get('level1_config') as LevelConfig;
+    const levelConfigKey = `level${this.levelToLoadIndex}_config`;
+    const levelConfig = this.cache.json.get(levelConfigKey) as LevelConfig;
 
     if (!levelConfig) {
       console.error(
-        'CRITICAL ERROR IN PRELOADER: Failed to get level1_config from cache!',
+        `CRITICAL ERROR IN PRELOADER: Failed to get ${levelConfigKey} from cache!`,
       );
-      // Handle this critical error, maybe go to an error scene or try a default config object
-      // For now, let's try to proceed but expect issues, or simply don't start MainMenu if it's fatal
       this.scene.start('MainMenuScene', {
         levelIndex: 0,
         levelConfig: undefined,
-      }); // Pass undefined to see it fail down the line
+      });
       return;
     }
     console.log(
-      'PreloaderScene: level1_config loaded successfully:',
-      levelConfig,
+      `PreloaderScene: ${levelConfigKey} loaded successfully:`,
+      levelConfig.levelName,
     );
 
     this.scene.start('MainMenuScene', {
-      levelIndex: 0,
+      levelIndex: this.levelToLoadIndex,
       levelConfig: levelConfig,
     });
   }

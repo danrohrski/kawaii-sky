@@ -76,7 +76,7 @@ export class PlayScene extends Phaser.Scene {
     }
     useGameStore
       .getState()
-      .setCurrentLevel(this.currentLevelIndex, this.currentLevelConfig);
+      .setCurrentLevelConfig(this.currentLevelIndex, this.currentLevelConfig);
   }
 
   create() {
@@ -223,15 +223,21 @@ export class PlayScene extends Phaser.Scene {
     // Ensure game state is reset based on the current level context if it's a fresh start for this level
     const storeState = useGameStore.getState();
     if (
+      !storeState.currentLevelConfig ||
       storeState.currentLevelIndex !== this.currentLevelIndex ||
-      storeState.currentLevelConfig?.levelName !==
-        this.currentLevelConfig.levelName ||
-      (storeState.lives === 3 && storeState.score === 0)
+      storeState.currentLevelConfig.levelName !==
+        this.currentLevelConfig.levelName
     ) {
-      useGameStore.getState().resetGame(this.currentLevelIndex);
-      useGameStore
-        .getState()
-        .setCurrentLevel(this.currentLevelIndex, this.currentLevelConfig);
+      if (
+        this.currentLevelIndex === 0 &&
+        storeState.score === 0 &&
+        storeState.lives === 3
+      ) {
+        // Let initialGameState from store prevail for first load
+      } else {
+        // For subsequent levels, setCurrentLevelConfig in init should set the config.
+        // Score and lives carry over unless advanceToNextLevel/resetGameSession modified them.
+      }
     }
 
     // Add a quit button to go back to the main menu
@@ -248,7 +254,7 @@ export class PlayScene extends Phaser.Scene {
     quitButton.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       // Stop this pointer event from bubbling up to the scene's pointerdown (which would cause a flap)
       pointer.event.stopPropagation();
-      useGameStore.getState().resetGame(); // Reset score/lives when quitting to main menu
+      useGameStore.getState().resetGameSession();
       this.scene.start('MainMenuScene');
     });
 
@@ -326,18 +332,19 @@ export class PlayScene extends Phaser.Scene {
       useGameStore.getState().deactivatePowerUp(PowerUpType.SHIELD);
       if (obstacle instanceof Obstacle) (obstacle as Obstacle).despawn();
       console.log('Shield blocked an obstacle!');
+      this.playerHit(false);
       return;
     }
 
     if (obstacle instanceof Obstacle && obstacle.active) {
       obstacle.despawn();
-      this.playerHit();
+      this.playerHit(true);
     } else if (
       obstacle instanceof Phaser.Physics.Arcade.Sprite &&
       obstacle.active
     ) {
       (obstacle as Phaser.Physics.Arcade.Sprite).disableBody(true, true);
-      this.playerHit();
+      this.playerHit(true);
     }
   }
 
@@ -378,65 +385,67 @@ export class PlayScene extends Phaser.Scene {
     powerUp.collect();
   }
 
-  playerHit() {
-    if (this.isInvincible || !this.cinnamoroll.active) return;
+  playerHit(isDamagingHit: boolean) {
+    if (!this.cinnamoroll.active) return;
+    if (isDamagingHit && this.isInvincible) return;
 
-    useGameStore.getState().decrementLives();
-    const currentLives = useGameStore.getState().lives;
+    if (isDamagingHit) {
+      useGameStore.getState().decrementLives();
+      const currentLives = useGameStore.getState().lives;
+      if (currentLives <= 0) {
+        console.log('Game Over');
+        if (this.blinkTween) this.blinkTween.stop();
+        this.cinnamoroll.setAlpha(1);
+        useGameStore.getState().resetGameSession();
+        CINNAMO_FLAP_VELOCITY_CURRENT = CINNAMO_FLAP_VELOCITY_NORMAL;
+        const firstLevelConfig = this.cache.json.get(
+          'level1_config',
+        ) as LevelConfig;
+        this.scene.start('MainMenuScene', {
+          levelIndex: 0,
+          levelConfig: firstLevelConfig,
+        });
+        return;
+      } else {
+        console.log(`Player hit! Lives remaining: ${currentLives}`);
+        this.isInvincible = true;
+        this.cinnamoroll.setAlpha(0.5);
+        this.cinnamoroll.setVelocityX(0);
 
-    if (currentLives <= 0) {
-      console.log('Game Over');
-      if (this.blinkTween) this.blinkTween.stop(); // Stop blink on game over
-      this.cinnamoroll.setAlpha(1); // Ensure visible on game over if was blinking
-      useGameStore.getState().resetGame(0); // Reset to level 0 state
-      // Important: Pass a valid config for the starting level to MainMenuScene
-      const firstLevelConfig = this.cache.json.get(
-        'level1_config',
-      ) as LevelConfig;
-      this.scene.start('MainMenuScene', {
-        levelIndex: 0,
-        levelConfig: firstLevelConfig,
-      });
-    } else {
-      console.log(`Player hit! Lives remaining: ${currentLives}`);
-      this.isInvincible = true;
-      this.cinnamoroll.setAlpha(0.5);
-      this.cinnamoroll.setVelocityX(0); // Stop any horizontal movement from collision
+        if (this.blinkTween) this.blinkTween.stop();
+        this.blinkTween = this.tweens.add({
+          targets: this.cinnamoroll,
+          alpha: { from: 0.5, to: 1 },
+          ease: 'Linear',
+          duration: 200,
+          repeat: Math.floor(INVINCIBILITY_DURATION / 400),
+          yoyo: true,
+        });
 
-      // Tween Cinnamoroll back to starting X position
-      this.tweens.add({
-        targets: this.cinnamoroll,
-        x: this.cameras.main.width / 4,
-        ease: 'Power1',
-        duration: 300, // Duration of the tween back
-      });
-
-      if (this.blinkTween) this.blinkTween.stop();
-      this.blinkTween = this.tweens.add({
-        targets: this.cinnamoroll,
-        alpha: { from: 0.5, to: 1 },
-        ease: 'Linear',
-        duration: 200,
-        repeat: Math.floor(INVINCIBILITY_DURATION / 400),
-        yoyo: true,
-      });
-
-      if (this.invincibilityTimer) this.invincibilityTimer.remove();
-      this.invincibilityTimer = this.time.delayedCall(
-        INVINCIBILITY_DURATION,
-        () => {
-          this.isInvincible = false;
-          if (this.cinnamoroll.active) {
-            // Check if still active before resetting alpha
-            this.cinnamoroll.setAlpha(1);
-          }
-          if (this.blinkTween) this.blinkTween.stop();
-          console.log('Invincibility ended');
-        },
-        [],
-        this,
-      );
+        if (this.invincibilityTimer) this.invincibilityTimer.remove();
+        this.invincibilityTimer = this.time.delayedCall(
+          INVINCIBILITY_DURATION,
+          () => {
+            this.isInvincible = false;
+            if (this.cinnamoroll.active) {
+              this.cinnamoroll.setAlpha(1);
+            }
+            if (this.blinkTween) this.blinkTween.stop();
+            console.log('Invincibility ended');
+          },
+          [],
+          this,
+        );
+      }
     }
+
+    this.cinnamoroll.setVelocityX(0);
+    this.tweens.add({
+      targets: this.cinnamoroll,
+      x: this.cameras.main.width / 4,
+      ease: 'Power1',
+      duration: 300,
+    });
   }
 
   performFlap() {
@@ -490,37 +499,29 @@ export class PlayScene extends Phaser.Scene {
 
   update(time: number, delta: number) {
     if (!this.cinnamoroll.active) return;
-    useGameStore.getState().incrementGameTime(delta);
     this.updateActivePowerUps(delta);
 
-    // Only destructure gameTime as others are not used here from store directly for this check
-    const { gameTime } = useGameStore.getState();
-    const currentConfig = this.currentLevelConfig; // Use the scene's authoritative config
+    const { score } = useGameStore.getState();
+    const currentConfig = this.currentLevelConfig;
 
     if (
-      currentConfig?.levelDuration &&
-      gameTime / 1000 >= currentConfig.levelDuration
+      currentConfig?.targetScoreToAdvance &&
+      score >= currentConfig.targetScoreToAdvance
     ) {
-      console.log(`Level ${currentConfig.levelName} complete!`);
-      useGameStore.getState().resetGame(0);
-      const nextLevelConfig = this.cache.json.get(
-        'level1_config',
-      ) as LevelConfig;
-      this.scene.start('MainMenuScene', {
-        levelIndex: 0,
-        levelConfig: nextLevelConfig,
-      });
+      console.log(
+        `Level ${currentConfig.levelName} complete with score ${score}! Advancing.`,
+      );
+      useGameStore.getState().advanceToNextLevel();
+      this.scene.start('MainMenuScene');
       return;
     }
-    // Off-screen check
+
     if (
       this.cinnamoroll.y < -this.cinnamoroll.displayHeight / 2 ||
       this.cinnamoroll.y >
         this.cameras.main.height + this.cinnamoroll.displayHeight / 2
     ) {
-      if (!this.isInvincible) {
-        this.playerHit();
-      }
+      if (!this.isInvincible) this.playerHit(true);
     }
   }
 }

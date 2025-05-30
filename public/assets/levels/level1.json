@@ -8,5 +8,5 @@
   "powerUpTypes": ["shield", "speed"],
   "powerUpSpawnIntervalBase": 12000,
   "skyColor": "#AEC6CF",
-  "levelDuration": 60
+  "targetScoreToAdvance": 100
 }
