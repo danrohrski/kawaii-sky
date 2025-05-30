@@ -24,6 +24,8 @@ const COLLECTIBLE_SCROLL_SPEED_BASE = -120;
 const POWERUP_SCROLL_SPEED_BASE = -100;
 const INVINCIBILITY_DURATION = 1500; // 1.5 seconds of invincibility
 const MAGNET_RADIUS = 150; // Radius for magnet effect
+const MOUNTAINS_BG_SCROLL_SPEED_MULTIPLIER = 0.2;
+const MOUNTAIN_SCALE = 0.5; // New scale for mountains
 
 // const LONG_PRESS_DURATION = 500; // Removed
 // const CHARGE_METER_WIDTH = 100; // Removed
@@ -48,6 +50,7 @@ export class PlayScene extends Phaser.Scene {
   // private chargeMeterGraphics!: Phaser.GameObjects.Graphics; // Removed
   private currentLevelConfig!: LevelConfig;
   private currentLevelIndex!: number;
+  private mountainsTileSprite!: Phaser.GameObjects.TileSprite;
 
   constructor() {
     super('PlayScene');
@@ -93,6 +96,32 @@ export class PlayScene extends Phaser.Scene {
       this.currentLevelConfig.levelName,
     );
     this.cameras.main.setBackgroundColor(this.currentLevelConfig.skyColor);
+
+    const gameWidth = this.cameras.main.width;
+    const gameHeight = this.cameras.main.height;
+
+    const mountainTexture = this.textures.get('mountains_bg');
+    const mountainImgHeight = mountainTexture.getSourceImage().height;
+    // mountainImgWidth is not strictly needed here if we set TileSprite width to gameWidth / MOUNTAIN_SCALE
+
+    this.mountainsTileSprite = this.add.tileSprite(
+      0,
+      0, // Initial Y, will be adjusted explicitly
+      gameWidth / MOUNTAIN_SCALE,
+      mountainImgHeight,
+      'mountains_bg',
+    );
+    this.mountainsTileSprite.setOrigin(0, 0); // TOP-LEFT origin
+    this.mountainsTileSprite.setScale(MOUNTAIN_SCALE);
+
+    // After scaling, this.mountainsTileSprite.displayHeight is its visual height.
+    // To align its bottom with the screen bottom (gameHeight):
+    // its top (y) should be gameHeight - its visual height.
+    this.mountainsTileSprite.y =
+      gameHeight - this.mountainsTileSprite.displayHeight;
+
+    this.mountainsTileSprite.setScrollFactor(0);
+    this.mountainsTileSprite.setDepth(-10);
 
     // Cinnamoroll sprite using the loaded sheet
     this.cinnamoroll = this.physics.add.sprite(
@@ -269,6 +298,14 @@ export class PlayScene extends Phaser.Scene {
     );
     this.shieldVisual.setDepth(9); // Behind Cinnamoroll but above background
     this.shieldVisual.setVisible(false);
+
+    // Ensure Cinnamoroll and other elements have a depth greater than the mountains, e.g., Cinnamoroll.setDepth(1)
+    this.cinnamoroll.setDepth(1); // Already set in a previous version, ensure it's still there and > mountain depth
+    this.cloudMonsterPool.setDepth(0); // Example: obstacles just above mountains
+    this.collectiblePool.setDepth(0);
+    this.powerUpPool.setDepth(0);
+    if (this.shieldVisual)
+      this.shieldVisual.setDepth(this.cinnamoroll.depth - 1); // Shield visual behind Cinnamoroll
   }
 
   spawnObstacle() {
@@ -523,5 +560,14 @@ export class PlayScene extends Phaser.Scene {
     ) {
       if (!this.isInvincible) this.playerHit(true);
     }
+
+    // Scroll the mountains background
+    const baseScroll =
+      OBSTACLE_SCROLL_SPEED_BASE *
+      this.currentLevelConfig.scrollSpeedMultiplier;
+    // Scroll mountains in the OPPOSITE direction (positive for right scroll)
+    this.mountainsTileSprite.tilePositionX -=
+      baseScroll * MOUNTAINS_BG_SCROLL_SPEED_MULTIPLIER * (delta / 1000);
+    // Subtracted to reverse: if baseScroll is negative (moving left), -- becomes positive (moving right)
   }
 }

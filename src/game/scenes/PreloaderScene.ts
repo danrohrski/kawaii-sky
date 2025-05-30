@@ -48,6 +48,9 @@ export class PreloaderScene extends Phaser.Scene {
     this.load.image('magnet_item_img', 'assets/sprites/magnet.png');
     this.load.image('speed_shoe_img', 'assets/sprites/speed-shoe.png');
 
+    // Load mountains background
+    this.load.image('mountains_bg', 'assets/sprites/mountains.png');
+
     // Dynamically load level configuration JSON
     const levelJsonFileName = `level${this.levelToLoadIndex + 1}.json`; // e.g., level1.json, level2.json
     const levelConfigKey = `level${this.levelToLoadIndex}_config`; // e.g., level0_config, level1_config
