@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import * as Phaser from 'phaser';
 import { CollectibleType } from '@/game/levels/levelTypes'; // Ensure this is the only source
 
 export interface CollectibleConfig {
@@ -117,7 +117,7 @@ export class Collectible extends Phaser.Physics.Arcade.Sprite {
         this.setPosition(-1000, -1000); // Move off-screen effectively
         // For a true object pool, we'd emit an event or call a pool.release(this) here
         // For now, it just becomes invisible and inactive.
-        // If not pooling, uncomment this.destroy();
+        this.destroy(); // If not pooling, uncomment this.destroy();
         this.collectTween = null;
       },
     });

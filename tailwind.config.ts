@@ -9,13 +9,22 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Kawaii Pastel Palette (Placeholders)
-        'pastel-pink': '#FFD1DC',
-        'pastel-blue': '#AEC6CF',
-        'pastel-green': '#C1E1C1',
-        'pastel-yellow': '#FDFD96',
-        'pastel-purple': '#D7BDE2',
-        'cinnamon-brown': '#D2B48C', // For Cinnamoroll accents
+        // Enhanced Kawaii Pastel Palette
+        'kawaii-pink': '#FFB6C1', // Soft pink
+        'kawaii-lavender': '#E6E6FA', // Light lavender
+        'kawaii-mint': '#F0FFF0', // Mint cream
+        'kawaii-peach': '#FFEAA7', // Soft peach
+        'kawaii-sky': '#E0F6FF', // Very light sky blue
+        'kawaii-cream': '#FFF8DC', // Cornsilk cream
+
+        // Text colors - much softer than black
+        'kawaii-brown': '#6EB2A0', // Updated to teal-green for primary text
+        'kawaii-gray': '#7A94BE', // Updated to blue-grey for secondary text
+        'kawaii-purple': '#C8A2C8', // Lilac for accents
+
+        // Game-specific colors
+        'cinnamon-brown': '#DEB887', // Lighter burlywood for Cinnamoroll
+        'cloud-white': '#FFFAFA', // Snow white for highlights
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',

@@ -1,18 +1,19 @@
-import Phaser from 'phaser';
+import * as Phaser from 'phaser';
 import useGameStore from '@/store/gameStore';
 import { CloudMonsterPool } from '@/game/obstacles/CloudMonsterPool';
+import { BoulderPool } from '@/game/obstacles/BoulderPool';
+import { FlyingKittenPool } from '@/game/obstacles/FlyingKittenPool';
 import { Obstacle } from '@/game/obstacles/Obstacle';
 import { CollectiblePool } from '@/game/collectibles/CollectiblePool';
 import { Collectible } from '@/game/collectibles/Collectible';
 import { PowerUpPool } from '@/game/powerups/PowerUpPool';
 import { PowerUpItem } from '@/game/powerups/PowerUpItem';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import {
   LevelConfig,
   ObstacleTypeKey,
-  CollectibleType,
   PowerUpType,
 } from '@/game/levels/levelTypes'; // Centralized enums
+import { AudioManager } from '@/game/AudioManager';
 
 const CINNAMO_FLAP_VELOCITY_NORMAL = -300;
 let CINNAMO_FLAP_VELOCITY_CURRENT = CINNAMO_FLAP_VELOCITY_NORMAL;
@@ -24,8 +25,8 @@ const COLLECTIBLE_SCROLL_SPEED_BASE = -120;
 const POWERUP_SCROLL_SPEED_BASE = -100;
 const INVINCIBILITY_DURATION = 1500; // 1.5 seconds of invincibility
 const MAGNET_RADIUS = 150; // Radius for magnet effect
-const MOUNTAINS_BG_SCROLL_SPEED_MULTIPLIER = 0.2;
-const MOUNTAIN_SCALE = 0.5; // New scale for mountains
+const BACKGROUND_SCROLL_SPEED_MULTIPLIER = 0.2; // Generic background scroll speed
+const BACKGROUND_SCALE = 0.5; // Generic background scale
 
 // const LONG_PRESS_DURATION = 500; // Removed
 // const CHARGE_METER_WIDTH = 100; // Removed
@@ -33,8 +34,9 @@ const MOUNTAIN_SCALE = 0.5; // New scale for mountains
 
 export class PlayScene extends Phaser.Scene {
   private cinnamoroll!: Phaser.Physics.Arcade.Sprite;
-  private scoreText!: Phaser.GameObjects.Text; // To display score from store
   private cloudMonsterPool!: CloudMonsterPool;
+  private boulderPool!: BoulderPool;
+  private flyingKittenPool!: FlyingKittenPool;
   private obstacleSpawnTimer!: Phaser.Time.TimerEvent;
   private collectiblePool!: CollectiblePool;
   private collectibleSpawnTimer!: Phaser.Time.TimerEvent;
@@ -43,14 +45,19 @@ export class PlayScene extends Phaser.Scene {
   private isInvincible = false;
   private invincibilityTimer?: Phaser.Time.TimerEvent;
   private blinkTween?: Phaser.Tweens.Tween; // For blinking effect
-  private shieldVisual?: Phaser.GameObjects.Ellipse; // For shield visual
+  private shieldVisual?: Phaser.GameObjects.Container; // For shield visual container
+  private shieldBubble?: Phaser.GameObjects.Ellipse; // Main bubble
+  private shieldHighlight?: Phaser.GameObjects.Ellipse; // Specular highlight
+  private speedParticles?: Phaser.GameObjects.Particles.ParticleEmitter; // Speed effect particles
   // private pointerDownTime = 0; // Removed
   // private longPressTimer?: Phaser.Time.TimerEvent; // Removed
   // private isCharging = false; // Removed
   // private chargeMeterGraphics!: Phaser.GameObjects.Graphics; // Removed
   private currentLevelConfig!: LevelConfig;
   private currentLevelIndex!: number;
-  private mountainsTileSprite!: Phaser.GameObjects.TileSprite;
+  private backgroundTileSprite!: Phaser.GameObjects.TileSprite;
+  private skyShader!: Phaser.GameObjects.Shader;
+  private dayTime = 0; // 0 to 1 cycle for day-night
 
   constructor() {
     super('PlayScene');
@@ -95,33 +102,48 @@ export class PlayScene extends Phaser.Scene {
       'PlayScene: create for level:',
       this.currentLevelConfig.levelName,
     );
-    this.cameras.main.setBackgroundColor(this.currentLevelConfig.skyColor);
+
+    // Update AudioManager with current scene to maintain background music
+    const audioManager = AudioManager.getInstance();
+    audioManager.setCurrentScene(this);
 
     const gameWidth = this.cameras.main.width;
     const gameHeight = this.cameras.main.height;
 
-    const mountainTexture = this.textures.get('mountains_bg');
-    const mountainImgHeight = mountainTexture.getSourceImage().height;
-    // mountainImgWidth is not strictly needed here if we set TileSprite width to gameWidth / MOUNTAIN_SCALE
+    this.skyShader = this.add.shader(
+      'sky_gradient_shader',
+      gameWidth / 2,
+      gameHeight / 2,
+      gameWidth,
+      gameHeight,
+      [],
+    );
+    this.skyShader.setDepth(-20);
 
-    this.mountainsTileSprite = this.add.tileSprite(
+    // Use background image from level config
+    const backgroundTexture = this.textures.get(
+      this.currentLevelConfig.backgroundImage,
+    );
+    const backgroundImgHeight = backgroundTexture.getSourceImage().height;
+
+    this.backgroundTileSprite = this.add.tileSprite(
       0,
       0, // Initial Y, will be adjusted explicitly
-      gameWidth / MOUNTAIN_SCALE,
-      mountainImgHeight,
-      'mountains_bg',
+      gameWidth / BACKGROUND_SCALE,
+      backgroundImgHeight,
+      this.currentLevelConfig.backgroundImage,
     );
-    this.mountainsTileSprite.setOrigin(0, 0); // TOP-LEFT origin
-    this.mountainsTileSprite.setScale(MOUNTAIN_SCALE);
+    this.backgroundTileSprite.setOrigin(0, 0); // TOP-LEFT origin
+    this.backgroundTileSprite.setScale(BACKGROUND_SCALE);
 
-    // After scaling, this.mountainsTileSprite.displayHeight is its visual height.
+    // After scaling, this.backgroundTileSprite.displayHeight is its visual height.
     // To align its bottom with the screen bottom (gameHeight):
     // its top (y) should be gameHeight - its visual height.
-    this.mountainsTileSprite.y =
-      gameHeight - this.mountainsTileSprite.displayHeight;
+    this.backgroundTileSprite.y =
+      gameHeight - this.backgroundTileSprite.displayHeight;
 
-    this.mountainsTileSprite.setScrollFactor(0);
-    this.mountainsTileSprite.setDepth(-10);
+    this.backgroundTileSprite.setScrollFactor(0);
+    this.backgroundTileSprite.setDepth(-10);
 
     // Cinnamoroll sprite using the loaded sheet
     this.cinnamoroll = this.physics.add.sprite(
@@ -174,6 +196,10 @@ export class PlayScene extends Phaser.Scene {
     // Initialize CloudMonsterPool
     this.cloudMonsterPool = new CloudMonsterPool(this);
 
+    // Initialize other obstacle pools
+    this.boulderPool = new BoulderPool(this);
+    this.flyingKittenPool = new FlyingKittenPool(this);
+
     // Setup timer to spawn obstacles
     this.obstacleSpawnTimer = this.time.addEvent({
       delay: this.currentLevelConfig.obstacleSpawnIntervalBase, // Use from config
@@ -210,6 +236,26 @@ export class PlayScene extends Phaser.Scene {
       this,
     );
 
+    // Boulder collision detection
+    this.physics.add.collider(
+      this.cinnamoroll,
+      this.boulderPool,
+      this
+        .handlePlayerObstacleCollision as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+      undefined,
+      this,
+    );
+
+    // Flying kitten collision detection
+    this.physics.add.collider(
+      this.cinnamoroll,
+      this.flyingKittenPool,
+      this
+        .handlePlayerObstacleCollision as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+      undefined,
+      this,
+    );
+
     // Collectible overlap detection
     this.physics.add.overlap(
       this.cinnamoroll,
@@ -229,25 +275,6 @@ export class PlayScene extends Phaser.Scene {
       undefined,
       this,
     );
-
-    // Display score from Zustand store
-    // Initial score display
-    this.scoreText = this.add.text(
-      10,
-      10,
-      `Score: ${useGameStore.getState().score}`,
-      {
-        fontSize: '20px',
-        color: '#FFF',
-      },
-    );
-
-    // Subscribe to score changes in the store to update the text
-    // Note: This basic subscription updates on any store change. For more complex stores,
-    // you might want more granular subscriptions or selectors if performance becomes an issue.
-    useGameStore.subscribe((state) => {
-      this.scoreText.setText(`Score: ${state.score}`);
-    });
 
     // Ensure game state is reset based on the current level context if it's a fresh start for this level
     const storeState = useGameStore.getState();
@@ -269,58 +296,146 @@ export class PlayScene extends Phaser.Scene {
       }
     }
 
-    // Add a quit button to go back to the main menu
-    const quitButton = this.add
-      .text(this.cameras.main.width - 20, 20, 'Quit', {
-        fontFamily: 'Arial',
-        fontSize: '20px',
-        color: '#FFF',
-        align: 'right',
-      })
-      .setOrigin(1, 0)
-      .setInteractive();
+    // Shield Visual (initially hidden) - Create realistic bubble effect
+    const bubbleSize = this.cinnamoroll.displayWidth + 30;
 
-    quitButton.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      // Stop this pointer event from bubbling up to the scene's pointerdown (which would cause a flap)
-      pointer.event.stopPropagation();
-      useGameStore.getState().resetGameSession();
-      this.scene.start('MainMenuScene');
-    });
+    // Create container for the bubble effect
+    this.shieldVisual = this.add.container(0, 0);
 
-    // Shield Visual (initially hidden)
-    this.shieldVisual = this.add.ellipse(
+    // Main bubble with iridescent colors (multiple layered ellipses for rainbow effect)
+    this.shieldBubble = this.add.ellipse(
       0,
       0,
-      this.cinnamoroll.displayWidth + 20,
-      this.cinnamoroll.displayHeight + 20,
+      bubbleSize,
+      bubbleSize,
+      0xff69b4,
+      0.15,
+    ); // Pink base
+    this.shieldBubble.setStrokeStyle(2, 0x00ffff, 0.4); // Cyan stroke
+
+    // Add rainbow gradient layers
+    const bubble2 = this.add.ellipse(
+      0,
+      0,
+      bubbleSize * 0.95,
+      bubbleSize * 0.95,
       0x00ffff,
+      0.1,
+    ); // Cyan
+    const bubble3 = this.add.ellipse(
+      0,
+      0,
+      bubbleSize * 0.9,
+      bubbleSize * 0.9,
+      0x9966ff,
+      0.1,
+    ); // Purple
+    const bubble4 = this.add.ellipse(
+      0,
+      0,
+      bubbleSize * 0.85,
+      bubbleSize * 0.85,
+      0x66ff66,
+      0.08,
+    ); // Green
+
+    // Specular highlight (white spot in upper-left)
+    this.shieldHighlight = this.add.ellipse(
+      -bubbleSize * 0.2, // Offset to upper-left
+      -bubbleSize * 0.2,
+      bubbleSize * 0.25, // Smaller highlight
+      bubbleSize * 0.15, // Slightly oval
+      0xffffff,
+      0.6, // Bright white highlight
+    );
+
+    // Add secondary smaller highlight for extra realism
+    const highlight2 = this.add.ellipse(
+      bubbleSize * 0.15,
+      bubbleSize * 0.1,
+      bubbleSize * 0.1,
+      bubbleSize * 0.08,
+      0xffffff,
       0.3,
     );
-    this.shieldVisual.setDepth(9); // Behind Cinnamoroll but above background
+
+    // Add all elements to the container
+    this.shieldVisual.add([
+      this.shieldBubble,
+      bubble2,
+      bubble3,
+      bubble4,
+      this.shieldHighlight,
+      highlight2,
+    ]);
+    this.shieldVisual.setDepth(this.cinnamoroll.depth - 1);
     this.shieldVisual.setVisible(false);
 
-    // Ensure Cinnamoroll and other elements have a depth greater than the mountains, e.g., Cinnamoroll.setDepth(1)
-    this.cinnamoroll.setDepth(1); // Already set in a previous version, ensure it's still there and > mountain depth
-    this.cloudMonsterPool.setDepth(0); // Example: obstacles just above mountains
+    // Speed particle system (initially stopped)
+    this.speedParticles = this.add.particles(0, 0, 'speed_star', {
+      x: 0, // Will be updated to Cinnamoroll position
+      y: 0,
+      scale: { start: 0.6, end: 0.1 },
+      alpha: { start: 1, end: 0 },
+      gravityY: 80,
+      frequency: 120, // Emit every 120ms for more sparkles
+      lifespan: 2000,
+      quantity: { min: 1, max: 3 },
+      rotate: { min: 0, max: 360 },
+      tint: [0xffd700, 0xff69b4, 0x00ffff, 0x9966ff], // Gold, pink, cyan, purple
+      emitZone: {
+        type: 'edge',
+        source: new Phaser.Geom.Rectangle(-10, -10, 20, 15), // Smaller area around character center
+        quantity: 1,
+      },
+      // Particles trail backward (opposite to movement direction)
+      speedX: { min: -120, max: -60 }, // All negative X for trailing behind (left)
+      speedY: { min: 20, max: 80 }, // All positive Y for downward movement
+    });
+    this.speedParticles.setDepth(this.cinnamoroll.depth - 1); // Behind Cinnamoroll
+    this.speedParticles.stop(); // Initially stopped
+
+    // Ensure Cinnamoroll and other elements have a depth greater than the background
+    this.cinnamoroll.setDepth(1); // Already set in a previous version, ensure it's still there and > background depth
+    this.cloudMonsterPool.setDepth(0); // Example: obstacles just above background
+    this.boulderPool.setDepth(0);
+    this.flyingKittenPool.setDepth(0);
     this.collectiblePool.setDepth(0);
     this.powerUpPool.setDepth(0);
     if (this.shieldVisual)
-      this.shieldVisual.setDepth(this.cinnamoroll.depth - 1); // Shield visual behind Cinnamoroll
+      this.shieldVisual.setDepth(this.cinnamoroll.depth - 1); // Shield bubble behind Cinnamoroll
+
+    // Ensure backgroundTileSprite and other BGs are in front of skyShader but behind game elements
+    if (this.backgroundTileSprite) this.backgroundTileSprite.setDepth(-10);
   }
 
   spawnObstacle() {
     const { scrollSpeedMultiplier, obstacleTypes } = this.currentLevelConfig;
     if (obstacleTypes.length === 0) return;
-    // For now, only cloud_monster is implemented. Later, pick randomly from obstacleTypes.
-    const typeToSpawn = obstacleTypes[0]; // Placeholder
 
-    if (typeToSpawn === ObstacleTypeKey.CLOUD_MONSTER) {
-      const gameWidth = this.cameras.main.width;
-      const gameHeight = this.cameras.main.height;
-      const spawnX = gameWidth + 50;
-      const spawnY = Phaser.Math.Between(gameHeight * 0.2, gameHeight * 0.8);
-      const speed = OBSTACLE_SCROLL_SPEED_BASE * scrollSpeedMultiplier; // Assuming a base speed constant
-      this.cloudMonsterPool.getMonster(spawnX, spawnY, speed);
+    // Randomly select an obstacle type from the level config
+    const typeToSpawn =
+      obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+
+    const gameWidth = this.cameras.main.width;
+    const gameHeight = this.cameras.main.height;
+    const spawnX = gameWidth + 50;
+    const spawnY = Phaser.Math.Between(gameHeight * 0.2, gameHeight * 0.8);
+    const speed = OBSTACLE_SCROLL_SPEED_BASE * scrollSpeedMultiplier;
+
+    switch (typeToSpawn) {
+      case ObstacleTypeKey.CLOUD_MONSTER:
+        this.cloudMonsterPool.getMonster(spawnX, spawnY, speed);
+        break;
+      case ObstacleTypeKey.BOULDER:
+        this.boulderPool.getBoulder(spawnX, spawnY, speed);
+        break;
+      case ObstacleTypeKey.FLYING_KITTEN:
+        this.flyingKittenPool.getKitten(spawnX, spawnY, speed);
+        break;
+      default:
+        console.warn(`Unknown obstacle type: ${typeToSpawn}`);
+        break;
     }
   }
 
@@ -369,9 +484,14 @@ export class PlayScene extends Phaser.Scene {
       useGameStore.getState().deactivatePowerUp(PowerUpType.SHIELD);
       if (obstacle instanceof Obstacle) (obstacle as Obstacle).despawn();
       console.log('Shield blocked an obstacle!');
+      // Play collision sound even when shield blocks (softer impact)
+      this.sound.play('collision_sound', { volume: 0.3 });
       this.playerHit(false);
       return;
     }
+
+    // Play collision sound for actual hits
+    this.sound.play('collision_sound', { volume: 0.6 });
 
     if (obstacle instanceof Obstacle && obstacle.active) {
       obstacle.despawn();
@@ -397,6 +517,10 @@ export class PlayScene extends Phaser.Scene {
       return;
     }
     const collectible = collectibleGO as Collectible;
+
+    // Play collectible eat sound
+    this.sound.play('eat_sound', { volume: 0.6 });
+
     useGameStore.getState().incrementScore(collectible.pointsValue);
     console.log(
       `Collected ${collectible.collectibleType}, +${collectible.pointsValue} points!`,
@@ -415,6 +539,10 @@ export class PlayScene extends Phaser.Scene {
     )
       return;
     const powerUp = powerUpGO as PowerUpItem;
+
+    // Play power-up collection sound
+    this.sound.play('powerup_sound', { volume: 0.7 });
+
     useGameStore
       .getState()
       .activatePowerUp(powerUp.powerUpType, powerUp.duration);
@@ -433,14 +561,18 @@ export class PlayScene extends Phaser.Scene {
         console.log('Game Over');
         if (this.blinkTween) this.blinkTween.stop();
         this.cinnamoroll.setAlpha(1);
+
+        // Get current score and level before resetting
+        const finalScore = useGameStore.getState().score;
+        const currentLevel = this.currentLevelIndex + 1; // Convert to 1-based for display
+
         useGameStore.getState().resetGameSession();
         CINNAMO_FLAP_VELOCITY_CURRENT = CINNAMO_FLAP_VELOCITY_NORMAL;
-        const firstLevelConfig = this.cache.json.get(
-          'level1_config',
-        ) as LevelConfig;
-        this.scene.start('MainMenuScene', {
-          levelIndex: 0,
-          levelConfig: firstLevelConfig,
+
+        // Go to GameOverScene with score and level info
+        this.scene.start('GameOverScene', {
+          score: finalScore,
+          level: currentLevel,
         });
         return;
       } else {
@@ -487,6 +619,9 @@ export class PlayScene extends Phaser.Scene {
 
   performFlap() {
     if (this.cinnamoroll && this.cinnamoroll.active) {
+      // Play flap sound
+      this.sound.play('flap_sound', { volume: 0.5 });
+
       this.cinnamoroll.setVelocityY(CINNAMO_FLAP_VELOCITY_CURRENT);
       this.cinnamoroll.play('flap', true);
       this.cinnamoroll.once(
@@ -500,23 +635,47 @@ export class PlayScene extends Phaser.Scene {
     }
   }
 
-  updateActivePowerUps(delta: number) {
+  updateActivePowerUps(delta: number, time: number) {
     useGameStore.getState().updatePowerUpTimers(delta);
     const { isShieldActive, isSpeedActive, isMagnetActive } =
       useGameStore.getState();
 
     // Shield visual
     this.shieldVisual?.setVisible(isShieldActive);
-    if (isShieldActive && this.shieldVisual) {
+    if (isShieldActive && this.shieldVisual && this.shieldBubble) {
+      // Position the entire bubble container around Cinnamoroll
       this.shieldVisual.setPosition(this.cinnamoroll.x, this.cinnamoroll.y);
-      this.shieldVisual.setStrokeStyle(2, 0x00ffff, 0.8); // Blinking or pulsing effect could be added
+
+      // Add subtle pulsing animation to make it more dynamic
+      const pulseFactor = 1 + Math.sin(time * 0.008) * 0.05; // Gentle pulsing
+      this.shieldVisual.setScale(pulseFactor);
+
+      // Add rainbow color cycling for main bubble
+      const colorCycle = time * 0.003; // Slow color cycling
+      const r = Math.floor(Math.sin(colorCycle) * 127 + 128);
+      const g = Math.floor(Math.sin(colorCycle + 2) * 127 + 128);
+      const b = Math.floor(Math.sin(colorCycle + 4) * 127 + 128);
+      const dynamicColor = (r << 16) | (g << 8) | b;
+      this.shieldBubble.setFillStyle(dynamicColor, 0.15);
     }
 
     // Speed effect
     CINNAMO_FLAP_VELOCITY_CURRENT = isSpeedActive
       ? CINNAMO_FLAP_VELOCITY_BOOSTED
       : CINNAMO_FLAP_VELOCITY_NORMAL;
-    this.cinnamoroll.setTint(isSpeedActive ? 0x00ff00 : 0xffffff); // Green tint for speed
+
+    // Speed particles instead of green tint
+    if (isSpeedActive && this.speedParticles) {
+      this.speedParticles.setPosition(
+        this.cinnamoroll.x,
+        this.cinnamoroll.y - 5,
+      );
+      if (!this.speedParticles.emitting) {
+        this.speedParticles.start();
+      }
+    } else if (this.speedParticles && this.speedParticles.emitting) {
+      this.speedParticles.stop();
+    }
 
     // Magnet effect
     if (isMagnetActive) {
@@ -536,7 +695,7 @@ export class PlayScene extends Phaser.Scene {
 
   update(time: number, delta: number) {
     if (!this.cinnamoroll.active) return;
-    this.updateActivePowerUps(delta);
+    this.updateActivePowerUps(delta, time);
 
     const { score } = useGameStore.getState();
     const currentConfig = this.currentLevelConfig;
@@ -549,7 +708,28 @@ export class PlayScene extends Phaser.Scene {
         `Level ${currentConfig.levelName} complete with score ${score}! Advancing.`,
       );
       useGameStore.getState().advanceToNextLevel();
-      this.scene.start('MainMenuScene');
+
+      // Check if the game was won after advancing
+      const newState = useGameStore.getState();
+      if (newState.gameWon) {
+        console.log('🎉 All levels completed! You won!');
+        // Play winner sound for completing the entire game
+        this.sound.play('game_winner_sound', { volume: 0.8 });
+
+        // Go to GameWinScene with final score
+        this.scene.start('GameWinScene', {
+          score: newState.score,
+        });
+      } else {
+        // Play level complete sound for finishing a level
+        this.sound.play('level_complete_sound', { volume: 0.7 });
+        // Load the next level
+        console.log(`Loading level ${newState.currentLevelIndex + 1}...`);
+        this.scene.start('PreloaderScene', {
+          levelIndex: newState.currentLevelIndex,
+          fromLevelComplete: true,
+        });
+      }
       return;
     }
 
@@ -561,13 +741,13 @@ export class PlayScene extends Phaser.Scene {
       if (!this.isInvincible) this.playerHit(true);
     }
 
-    // Scroll the mountains background
+    // Scroll the background
     const baseScroll =
       OBSTACLE_SCROLL_SPEED_BASE *
       this.currentLevelConfig.scrollSpeedMultiplier;
-    // Scroll mountains in the OPPOSITE direction (positive for right scroll)
-    this.mountainsTileSprite.tilePositionX -=
-      baseScroll * MOUNTAINS_BG_SCROLL_SPEED_MULTIPLIER * (delta / 1000);
+    // Scroll background in the OPPOSITE direction (positive for right scroll)
+    this.backgroundTileSprite.tilePositionX -=
+      baseScroll * BACKGROUND_SCROLL_SPEED_MULTIPLIER * (delta / 1000);
     // Subtracted to reverse: if baseScroll is negative (moving left), -- becomes positive (moving right)
   }
 }

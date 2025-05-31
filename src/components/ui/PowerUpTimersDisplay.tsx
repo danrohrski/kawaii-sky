@@ -2,11 +2,11 @@
 
 import useGameStore from '@/store/gameStore';
 import { useEffect, useState } from 'react';
-// import { shallow } from 'zustand/shallow'; // Not using shallow for now
 
 interface ActivePowerUpDisplay {
   name: string;
-  remainingSeconds: number;
+  remainingMs: number;
+  progressPercentage: number;
 }
 
 const PowerUpTimersDisplay = () => {
@@ -22,24 +22,45 @@ const PowerUpTimersDisplay = () => {
     [],
   );
 
+  // Default power-up duration (matches game logic)
+  const DEFAULT_DURATION = 10000; // 10 seconds in milliseconds
+
   useEffect(() => {
     const currentActive: ActivePowerUpDisplay[] = [];
+
     if (isShieldActive && shieldTimer > 0) {
+      const progressPercentage = Math.max(
+        0,
+        Math.min(100, (shieldTimer / DEFAULT_DURATION) * 100),
+      );
       currentActive.push({
         name: 'Shield',
-        remainingSeconds: Math.ceil(shieldTimer / 1000),
+        remainingMs: shieldTimer,
+        progressPercentage,
       });
     }
+
     if (isSpeedActive && speedTimer > 0) {
+      const progressPercentage = Math.max(
+        0,
+        Math.min(100, (speedTimer / DEFAULT_DURATION) * 100),
+      );
       currentActive.push({
         name: 'Speed Boost',
-        remainingSeconds: Math.ceil(speedTimer / 1000),
+        remainingMs: speedTimer,
+        progressPercentage,
       });
     }
+
     if (isMagnetActive && magnetTimer > 0) {
+      const progressPercentage = Math.max(
+        0,
+        Math.min(100, (magnetTimer / DEFAULT_DURATION) * 100),
+      );
       currentActive.push({
         name: 'Magnet Charm',
-        remainingSeconds: Math.ceil(magnetTimer / 1000),
+        remainingMs: magnetTimer,
+        progressPercentage,
       });
     }
 
@@ -62,16 +83,25 @@ const PowerUpTimersDisplay = () => {
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 p-4 bg-pastel-purple/90 text-white rounded-xl shadow-lg flex flex-col gap-2 w-64">
-      <h3 className="text-xl font-bold border-b-2 border-white/50 pb-1 mb-1">
-        Active Power-ups:
+    <div
+      className="fixed bottom-5 right-5 z-50 p-3 bg-kawaii-mint/90 text-kawaii-brown rounded-xl flex flex-col gap-3"
+      style={{ maxWidth: '180px' }}
+    >
+      <h3 className="text-lg font-bold border-b-2 border-kawaii-purple/50 pb-1 mb-1 text-center">
+        Active Power-ups
       </h3>
       {activePowerUps.map((powerUp) => (
-        <div key={powerUp.name} className="flex justify-between items-center">
-          <span className="font-semibold">{powerUp.name}:</span>
-          <span className="text-lg font-mono bg-white/20 px-2 py-0.5 rounded">
-            {powerUp.remainingSeconds}s
-          </span>
+        <div key={powerUp.name} className="flex flex-col gap-1">
+          <span className="font-semibold text-sm">{powerUp.name}</span>
+          <div className="w-full bg-gray-300 rounded-full h-3">
+            <div
+              className="h-full rounded-full transition-all duration-100 ease-linear"
+              style={{
+                width: `${powerUp.progressPercentage}%`,
+                backgroundColor: '#7A94BE', // Blue-grey color matching "tap or space" text
+              }}
+            />
+          </div>
         </div>
       ))}
     </div>

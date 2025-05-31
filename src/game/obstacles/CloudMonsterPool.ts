@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import * as Phaser from 'phaser';
 import { Obstacle } from './Obstacle';
 
 const CLOUD_SCALE = 0.7; // Example scale for the cloud visual

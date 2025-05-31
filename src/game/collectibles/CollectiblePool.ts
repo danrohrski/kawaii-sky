@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import * as Phaser from 'phaser';
 import { Collectible, CinnamonRoll, CoffeeCup, Star } from './Collectible';
 import { CollectibleType } from '@/game/levels/levelTypes';
 

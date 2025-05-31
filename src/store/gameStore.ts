@@ -1,17 +1,14 @@
 import { create } from 'zustand';
 import { LevelConfig, PowerUpType } from '@/game/levels/levelTypes'; // Ensure this is the only source for PowerUpType
+import { TOTAL_LEVELS } from '@/game/levels';
 
-// Assume a total number of levels. This could come from a config file later.
-const MAX_LEVEL_INDEX = 1; // For level1 (index 0) and level2 (index 1)
+// 3 levels total: Level 1 (index 0), Level 2 (index 1), Level 3 (index 2)
+const MAX_LEVEL_INDEX = TOTAL_LEVELS - 1; // 2 for 3 levels (0, 1, 2)
 
 interface GameState {
   score: number;
   lives: number;
-  // Add other game state properties here later, e.g.:
-  // powerUpActive: boolean;
-  // powerUpTimer: number;
-  // isPaused: boolean;
-  // currentLevel: number;
+  gameWon: boolean; // New: tracks if player has won the game
 
   // Power-up states
   isShieldActive: boolean;
@@ -29,7 +26,7 @@ interface GameState {
   incrementScore: (amount: number) => void;
   decrementLives: () => void;
   resetGameSession: () => void; // Full reset for game over or quit
-  advanceToNextLevel: () => void; // Advances level, keeps score/lives
+  advanceToNextLevel: () => void; // Advances level, keeps score/lives, or triggers win
   setCurrentLevelConfig: (levelIndex: number, config: LevelConfig) => void; // Sets current loaded level
 
   // Power-up actions
@@ -41,6 +38,7 @@ interface GameState {
 const initialGameSessionState = {
   score: 0,
   lives: 3,
+  gameWon: false,
   isShieldActive: false,
   shieldTimer: 0,
   isSpeedActive: false,
@@ -66,12 +64,27 @@ const useGameStore = create<GameState>((set, get) => ({
 
   advanceToNextLevel: () => {
     const currentIdx = get().currentLevelIndex;
-    const nextIdx = (currentIdx + 1) % (MAX_LEVEL_INDEX + 1); // Loop back for now
-    console.log(`Store: advanceToNextLevel from ${currentIdx} to ${nextIdx}`);
+
+    // Check if this was the final level (level 3, index 2)
+    if (currentIdx >= MAX_LEVEL_INDEX) {
+      console.log('🎉 Store: Game Won! Player completed all 3 levels!');
+      set((state) => ({
+        ...state,
+        gameWon: true,
+        // Keep score and lives as final results
+      }));
+      return;
+    }
+
+    const nextIdx = currentIdx + 1;
+    console.log(
+      `Store: advanceToNextLevel from ${currentIdx + 1} to ${nextIdx + 1}`,
+    );
     set((state) => ({
       // Keep score and lives from current state
       score: state.score,
       lives: state.lives,
+      gameWon: false, // Ensure this stays false until final level
       // Reset power-ups and timers
       isShieldActive: false,
       shieldTimer: 0,

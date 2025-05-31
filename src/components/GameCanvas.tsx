@@ -1,8 +1,11 @@
-import 'phaser';
+import * as Phaser from 'phaser';
 import { useEffect, useRef } from 'react';
 import { PreloaderScene } from '@/game/scenes/PreloaderScene';
+import { WelcomeScene } from '@/game/scenes/WelcomeScene';
 import { MainMenuScene } from '@/game/scenes/MainMenuScene';
 import { PlayScene } from '@/game/scenes/PlayScene';
+import { GameOverScene } from '@/game/scenes/GameOverScene';
+import { GameWinScene } from '@/game/scenes/GameWinScene';
 
 const GameCanvas = () => {
   const gameContainerRef = useRef<HTMLDivElement>(null);
@@ -24,10 +27,17 @@ const GameCanvas = () => {
           default: 'arcade',
           arcade: {
             gravity: { x: 0, y: 0 }, // Global gravity, can be overridden per object
-            debug: true, // Set to true for physics debugging visuals
+            debug: false, // Set to true for physics debugging visuals
           },
         },
-        scene: [PreloaderScene, MainMenuScene, PlayScene], // Add all scenes here
+        scene: [
+          PreloaderScene,
+          WelcomeScene,
+          MainMenuScene,
+          PlayScene,
+          GameOverScene,
+          GameWinScene,
+        ], // Added new scenes
       };
 
       gameInstanceRef.current = new Phaser.Game(config);

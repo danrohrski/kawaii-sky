@@ -1,7 +1,7 @@
 export enum ObstacleTypeKey {
   CLOUD_MONSTER = 'cloud_monster',
-  // BOULDER = 'boulder', // For later
-  // KITTEN = 'flying_kitten', // For later
+  BOULDER = 'boulder',
+  FLYING_KITTEN = 'flying_kitten',
 }
 
 // Define the actual enums here with string values
@@ -27,5 +27,6 @@ export interface LevelConfig {
   powerUpTypes: PowerUpType[];
   powerUpSpawnIntervalBase: number;
   skyColor: string;
+  backgroundImage: string;
   targetScoreToAdvance: number;
 }

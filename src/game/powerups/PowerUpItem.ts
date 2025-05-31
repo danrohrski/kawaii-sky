@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import * as Phaser from 'phaser';
 import { PowerUpType } from '@/game/levels/levelTypes'; // Ensure this is the only source
 
 export interface PowerUpItemConfig {

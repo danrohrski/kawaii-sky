@@ -1,28 +1,42 @@
-import Phaser from 'phaser';
-import { LevelConfig } from '@/game/levels/levelTypes'; // Import LevelConfig
-import useGameStore from '@/store/gameStore'; // Import store
+import * as Phaser from 'phaser';
+import { LevelConfig } from '@/game/levels/levelTypes';
+import useGameStore from '@/store/gameStore';
+import { AudioManager } from '@/game/AudioManager';
 
 export class MainMenuScene extends Phaser.Scene {
   private levelConfig?: LevelConfig;
   private levelIndexToPlay!: number;
+  private isLevelTransition = false;
 
   constructor() {
     super('MainMenuScene');
   }
 
-  init(data?: { levelIndex?: number; levelConfig?: LevelConfig }) {
+  init(data?: {
+    levelIndex?: number;
+    levelConfig?: LevelConfig;
+    fromLevelComplete?: boolean;
+    gameWon?: boolean;
+  }) {
     if (data && typeof data.levelIndex === 'number' && data.levelConfig) {
       this.levelIndexToPlay = data.levelIndex;
       this.levelConfig = data.levelConfig;
+      this.isLevelTransition = data.fromLevelComplete || false;
+
+      if (data.gameWon) {
+        this.isLevelTransition = true;
+        this.levelIndexToPlay = 0;
+        this.levelConfig = undefined;
+      }
+
       console.log(
         `MainMenuScene: init with preloaded Level ${this.levelIndexToPlay} Config:`,
-        this.levelConfig.levelName,
+        this.levelConfig?.levelName || 'Game Complete',
       );
     } else {
-      // No specific level preloaded (e.g., game just started, or came from a simple quit)
-      // Get the current level index from the store to decide what to play next.
       this.levelIndexToPlay = useGameStore.getState().currentLevelIndex;
-      this.levelConfig = undefined; // Needs to be loaded by Preloader
+      this.levelConfig = undefined;
+      this.isLevelTransition = false;
       console.log(
         `MainMenuScene: init, will play/load level index ${this.levelIndexToPlay} from store.`,
       );
@@ -31,49 +45,101 @@ export class MainMenuScene extends Phaser.Scene {
 
   create() {
     console.log('MainMenuScene: create');
-    this.cameras.main.setBackgroundColor('#FDFD96'); // Using our pastel-yellow
+
+    // Update AudioManager with current scene to maintain background music
+    const audioManager = AudioManager.getInstance();
+    audioManager.setCurrentScene(this);
+
+    this.cameras.main.setBackgroundColor('#FFF8DC');
 
     const centerX = this.cameras.main.width / 2;
     const centerY = this.cameras.main.height / 2;
+    const gameState = useGameStore.getState();
 
-    const startButton = this.add
-      .text(centerX, centerY, 'Start Game', {
-        fontFamily: 'Arial',
-        fontSize: '32px',
-        color: '#D2B48C', // cinnamon-brown
+    // Level completion message
+    if (
+      this.isLevelTransition &&
+      this.levelIndexToPlay > 0 &&
+      !gameState.gameWon
+    ) {
+      this.add
+        .text(
+          centerX,
+          centerY - 100,
+          `🎉 Level ${this.levelIndexToPlay} Complete! 🎉`,
+          {
+            fontFamily: 'Spicy Rice',
+            fontSize: '24px',
+            color: '#FFB6C1',
+            align: 'center',
+          },
+        )
+        .setOrigin(0.5);
+    }
+
+    // Game won message
+    if (gameState.gameWon) {
+      this.add
+        .text(centerX, centerY - 100, `🏆 GAME COMPLETE! 🏆`, {
+          fontFamily: 'Spicy Rice',
+          fontSize: '28px',
+          color: '#FFEAA7',
+          align: 'center',
+        })
+        .setOrigin(0.5);
+    }
+
+    // Current level info
+    const levelNumber = this.levelIndexToPlay + 1;
+    let levelDisplayText = '';
+
+    if (this.levelConfig && this.levelConfig.levelName) {
+      // If we have level config, show the actual level name
+      levelDisplayText = `Level ${levelNumber}: ${this.levelConfig.levelName}`;
+    } else {
+      // Fallback when level config isn't loaded yet (coming from welcome screen)
+      levelDisplayText = `Level ${levelNumber}`;
+    }
+
+    this.add
+      .text(centerX, centerY - 20, levelDisplayText, {
+        fontFamily: 'Spicy Rice',
+        fontSize: '28px',
+        color: '#6EB2A0',
         align: 'center',
       })
-      .setOrigin(0.5)
-      .setInteractive();
+      .setOrigin(0.5);
 
-    startButton.on('pointerdown', () => {
-      console.log(
-        'Start Game button clicked for level index:',
-        this.levelIndexToPlay,
-      );
-      if (this.levelConfig) {
-        // Config already loaded and passed to init (likely from Preloader or PlayScene game over)
-        this.scene.start('PlayScene', {
-          levelIndex: this.levelIndexToPlay,
-          levelConfig: this.levelConfig,
-        });
-      } else {
-        // Config not available, means we need Preloader to load it for levelIndexToPlay
-        console.log(
-          `MainMenuScene: No preloaded config, starting Preloader for level index ${this.levelIndexToPlay}`,
-        );
-        this.scene.start('PreloaderScene', {
-          levelIndex: this.levelIndexToPlay,
-        });
-      }
-    });
-
-    // Placeholder for settings, etc.
+    // Start instruction
     this.add
-      .text(centerX, centerY + 100, 'Settings (TODO)', {
+      .text(centerX, centerY + 20, 'Tap or space to start', {
+        fontFamily: 'Spicy Rice',
         fontSize: '20px',
-        color: '#D2B48C',
+        color: '#7A94BE',
+        align: 'center',
       })
       .setOrigin(0.5);
+
+    // Input handling
+    this.input.on('pointerdown', this.startGame, this);
+    this.input.keyboard?.on('keydown-SPACE', this.startGame, this);
+
+    // Also listen for any key press as a fallback
+    this.input.keyboard?.on('keydown', this.startGame, this);
+
+    console.log('MainMenuScene: Input handlers set up');
+  }
+
+  startGame() {
+    console.log('MainMenuScene: startGame called!');
+    console.log('Starting game for level index:', this.levelIndexToPlay);
+    console.log('Level config available:', !!this.levelConfig);
+
+    // Always go to PreloaderScene to ensure level is properly loaded
+    // PreloaderScene will then go to PlayScene when ready
+    this.scene.start('PreloaderScene', {
+      levelIndex: this.levelIndexToPlay,
+      goToGame: true, // Signal that we want to start the game, not return to menu
+    });
   }
 }
